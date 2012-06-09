@@ -109,11 +109,14 @@ static char kAFImageRequestOperationObjectKey;
             success(nil, nil, cachedImage);
         }
     } else {
+        UIViewContentMode oldContentMode = self.contentMode;
+        self.contentMode = UIViewContentModeCenter;
         self.image = placeholderImage;
         
         AFImageRequestOperation *requestOperation = [[[AFImageRequestOperation alloc] initWithRequest:urlRequest] autorelease];
         [requestOperation setCompletionBlockWithSuccess:^(AFHTTPRequestOperation *operation, id responseObject) {
             if ([[urlRequest URL] isEqual:[[self.af_imageRequestOperation request] URL]]) {
+                self.contentMode = oldContentMode;
                 self.image = responseObject;
                 self.af_imageRequestOperation = nil;
             }
