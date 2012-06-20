@@ -25,6 +25,7 @@
 
 #if __IPHONE_OS_VERSION_MIN_REQUIRED
 #import "UIImageView+AFNetworking.h"
+#import "UIImage+Resize.h"
 
 @interface AFImageCache : NSCache
 - (UIImage *)cachedImageForRequest:(NSURLRequest *)request;
@@ -99,7 +100,7 @@ static char kAFImageRequestOperationObjectKey;
                        failure:(void (^)(NSURLRequest *request, NSHTTPURLResponse *response, NSError *error))failure
 {
     [self cancelImageRequestOperation];
-    
+
     UIImage *cachedImage = [[[self class] af_sharedImageCache] cachedImageForRequest:urlRequest];
     if (cachedImage) {
         self.image = cachedImage;
@@ -115,6 +116,13 @@ static char kAFImageRequestOperationObjectKey;
         
         AFImageRequestOperation *requestOperation = [[[AFImageRequestOperation alloc] initWithRequest:urlRequest] autorelease];
         [requestOperation setCompletionBlockWithSuccess:^(AFHTTPRequestOperation *operation, id responseObject) {
+            NSInteger iPadVersion = [[[NSUserDefaults standardUserDefaults] objectForKey:@"ipad-version"] integerValue];
+            if ( iPadVersion == 1) {
+                UIImage *responseImage = responseObject;
+                UIImage *smallerImage = [responseImage resizedImageWithContentMode:UIViewContentModeScaleAspectFit bounds:CGSizeMake(1024, 768) interpolationQuality:kCGInterpolationMedium];
+                responseObject = smallerImage;
+            }
+
             if ([[urlRequest URL] isEqual:[[self.af_imageRequestOperation request] URL]]) {
                 self.contentMode = oldContentMode;
                 self.image = responseObject;
