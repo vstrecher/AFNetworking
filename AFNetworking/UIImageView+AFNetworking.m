@@ -22,6 +22,7 @@
 
 #import <Foundation/Foundation.h>
 #import <objc/runtime.h>
+#import <CoreGraphics/CoreGraphics.h>
 
 #if __IPHONE_OS_VERSION_MIN_REQUIRED
 #import "UIImageView+AFNetworking.h"
@@ -117,9 +118,9 @@ static char kAFImageRequestOperationObjectKey;
         AFImageRequestOperation *requestOperation = [[[AFImageRequestOperation alloc] initWithRequest:urlRequest] autorelease];
         [requestOperation setCompletionBlockWithSuccess:^(AFHTTPRequestOperation *operation, id responseObject) {
             NSInteger iPadVersion = [[[NSUserDefaults standardUserDefaults] objectForKey:@"ipad-version"] integerValue];
-            if ( iPadVersion == 1) {
+            if ( iPadVersion == 1 ) {
                 UIImage *responseImage = responseObject;
-                UIImage *smallerImage = [responseImage resizedImageWithContentMode:UIViewContentModeScaleAspectFit bounds:CGSizeMake(1024, 768) interpolationQuality:kCGInterpolationMedium];
+                UIImage *smallerImage = [responseImage resizedImageWithContentMode:UIViewContentModeScaleAspectFit bounds:CGSizeMake(floorf(responseImage.size.width / 2.0), floorf(responseImage.size.height / 2.0)) interpolationQuality:kCGInterpolationMedium];
                 responseObject = smallerImage;
             }
 
