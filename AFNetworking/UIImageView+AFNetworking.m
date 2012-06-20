@@ -20,9 +20,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-#import <Foundation/Foundation.h>
 #import <objc/runtime.h>
-#import <CoreGraphics/CoreGraphics.h>
 
 #if __IPHONE_OS_VERSION_MIN_REQUIRED
 #import "UIImageView+AFNetworking.h"
@@ -88,25 +86,44 @@ static char kAFImageRequestOperationObjectKey;
 - (void)setImageWithURL:(NSURL *)url 
        placeholderImage:(UIImage *)placeholderImage
 {
+    [self setImageWithURL:url placeholderImage:placeholderImage resizeTo:CGSizeZero];
+}
+
+- (void)setImageWithURL:(NSURL *)url placeholderImage:(UIImage *)placeholderImage resizeTo:(CGSize)newSize {
     NSMutableURLRequest *request = [NSMutableURLRequest requestWithURL:url cachePolicy:NSURLRequestUseProtocolCachePolicy timeoutInterval:30.0];
     [request setHTTPShouldHandleCookies:NO];
     [request setHTTPShouldUsePipelining:YES];
-    
-    [self setImageWithURLRequest:request placeholderImage:placeholderImage success:nil failure:nil];
+
+    [self setImageWithURLRequest:request placeholderImage:placeholderImage success:nil failure:nil resizeTo:newSize];
 }
+
 
 - (void)setImageWithURLRequest:(NSURLRequest *)urlRequest 
               placeholderImage:(UIImage *)placeholderImage 
                        success:(void (^)(NSURLRequest *request, NSHTTPURLResponse *response, UIImage *image))success
                        failure:(void (^)(NSURLRequest *request, NSHTTPURLResponse *response, NSError *error))failure
 {
+    [self setImageWithURLRequest:urlRequest placeholderImage:placeholderImage success:success failure:failure resizeTo:CGSizeZero];
+}
+
+- (void)setImageWithURLRequest:(NSURLRequest *)urlRequest
+              placeholderImage:(UIImage *)placeholderImage
+                       success:(void (^)(NSURLRequest *request, NSHTTPURLResponse *response, UIImage *image))success
+                       failure:(void (^)(NSURLRequest *request, NSHTTPURLResponse *response, NSError *error))failure
+                      resizeTo:(CGSize)newSize
+{
     [self cancelImageRequestOperation];
 
     UIImage *cachedImage = [[[self class] af_sharedImageCache] cachedImageForRequest:urlRequest];
     if (cachedImage) {
-        self.image = cachedImage;
+        UIImage *imageToSet = cachedImage;
+        if ( newSize.height != 0 && newSize.width != 0 ) {
+            UIImage *smallerImage = [imageToSet resizedImageWithContentMode:UIViewContentModeScaleAspectFit bounds:newSize interpolationQuality:kCGInterpolationMedium];
+            imageToSet = smallerImage;
+        }
+        self.image = imageToSet;
         self.af_imageRequestOperation = nil;
-        
+
         if (success) {
             success(nil, nil, cachedImage);
         }
@@ -114,10 +131,11 @@ static char kAFImageRequestOperationObjectKey;
         UIViewContentMode oldContentMode = self.contentMode;
         self.contentMode = UIViewContentModeCenter;
         self.image = placeholderImage;
-        
+
         AFImageRequestOperation *requestOperation = [[[AFImageRequestOperation alloc] initWithRequest:urlRequest] autorelease];
         [requestOperation setCompletionBlockWithSuccess:^(AFHTTPRequestOperation *operation, id responseObject) {
             NSInteger iPadVersion = [[[NSUserDefaults standardUserDefaults] objectForKey:@"ipad-version"] integerValue];
+
             if ( iPadVersion == 1 ) {
                 UIImage *responseImage = responseObject;
                 UIImage *smallerImage = [responseImage resizedImageWithContentMode:UIViewContentModeScaleAspectFit bounds:CGSizeMake(floorf(responseImage.size.width / 2.0), floorf(responseImage.size.height / 2.0)) interpolationQuality:kCGInterpolationMedium];
@@ -126,7 +144,13 @@ static char kAFImageRequestOperationObjectKey;
 
             if ([[urlRequest URL] isEqual:[[self.af_imageRequestOperation request] URL]]) {
                 self.contentMode = oldContentMode;
-                self.image = responseObject;
+                UIImage *imageToSet = responseObject;
+                if ( newSize.height != 0 && newSize.width != 0 ) {
+                    UIImage *smallerImage = [imageToSet resizedImageWithContentMode:UIViewContentModeScaleAspectFit bounds:newSize interpolationQuality:kCGInterpolationMedium];
+                    imageToSet = smallerImage;
+                }
+
+                self.image = imageToSet;
                 self.af_imageRequestOperation = nil;
             }
 
@@ -135,7 +159,7 @@ static char kAFImageRequestOperationObjectKey;
             }
 
             [[[self class] af_sharedImageCache] cacheImage:responseObject forRequest:urlRequest];
-            
+
 
         } failure:^(AFHTTPRequestOperation *operation, NSError *error) {
             if ([[urlRequest URL] isEqual:[[self.af_imageRequestOperation request] URL]]) {
@@ -145,11 +169,11 @@ static char kAFImageRequestOperationObjectKey;
             if (failure) {
                 failure(operation.request, operation.response, error);
             }
-            
+
         }];
-        
+
         self.af_imageRequestOperation = requestOperation;
-        
+
         [[[self class] af_sharedImageRequestOperationQueue] addOperation:self.af_imageRequestOperation];
     }
 }
