@@ -58,12 +58,12 @@ static char kAFImageRequestOperationObjectKey;
 
 + (NSOperationQueue *)af_sharedImageRequestOperationQueue {
     static NSOperationQueue *_af_imageRequestOperationQueue = nil;
-    
+
     if (!_af_imageRequestOperationQueue) {
         _af_imageRequestOperationQueue = [[NSOperationQueue alloc] init];
         [_af_imageRequestOperationQueue setMaxConcurrentOperationCount:8];
     }
-    
+
     return _af_imageRequestOperationQueue;
 }
 
@@ -73,7 +73,7 @@ static char kAFImageRequestOperationObjectKey;
     dispatch_once(&oncePredicate, ^{
         _af_imageCache = [[AFImageCache alloc] init];
     });
-    
+
     return _af_imageCache;
 }
 
@@ -83,23 +83,35 @@ static char kAFImageRequestOperationObjectKey;
     [self setImageWithURL:url placeholderImage:nil];
 }
 
-- (void)setImageWithURL:(NSURL *)url 
+- (void)setImageWithURL:(NSURL *)url
        placeholderImage:(UIImage *)placeholderImage
 {
     [self setImageWithURL:url placeholderImage:placeholderImage resizeTo:CGSizeZero];
 }
 
 - (void)setImageWithURL:(NSURL *)url placeholderImage:(UIImage *)placeholderImage resizeTo:(CGSize)newSize {
-    NSMutableURLRequest *request = [NSMutableURLRequest requestWithURL:url cachePolicy:NSURLRequestReturnCacheDataElseLoad timeoutInterval:30.0];
-    [request setHTTPShouldHandleCookies:NO];
-    [request setHTTPShouldUsePipelining:YES];
+    NSMutableURLRequest *request = [NSMutableURLRequest requestWithURL:url cachePolicy:NSURLRequestUseProtocolCachePolicy timeoutInterval:30.0];
+//    [request setHTTPShouldHandleCookies:NO];
+//    [request setHTTPShouldUsePipelining:YES];
 
     [self setImageWithURLRequest:request placeholderImage:placeholderImage success:nil failure:nil resizeTo:newSize];
 }
 
+- (void)setImageWithURL:(NSURL *)url
+       placeholderImage:(UIImage *)placeholderImage
+                success:(void (^)(NSURLRequest *request, NSHTTPURLResponse *response, UIImage *image))success
+                failure:(void (^)(NSURLRequest *request, NSHTTPURLResponse *response, NSError *error))failure
+               resizeTo:(CGSize)newSize
+{
+    NSMutableURLRequest *request = [NSMutableURLRequest requestWithURL:url cachePolicy:NSURLRequestUseProtocolCachePolicy timeoutInterval:30.0];
+//    [request setHTTPShouldHandleCookies:NO];
+//    [request setHTTPShouldUsePipelining:YES];
 
-- (void)setImageWithURLRequest:(NSURLRequest *)urlRequest 
-              placeholderImage:(UIImage *)placeholderImage 
+    [self setImageWithURLRequest:request placeholderImage:placeholderImage success:success failure:failure resizeTo:newSize];
+}
+
+- (void)setImageWithURLRequest:(NSURLRequest *)urlRequest
+              placeholderImage:(UIImage *)placeholderImage
                        success:(void (^)(NSURLRequest *request, NSHTTPURLResponse *response, UIImage *image))success
                        failure:(void (^)(NSURLRequest *request, NSHTTPURLResponse *response, NSError *error))failure
 {
