@@ -21,6 +21,7 @@
 // THE SOFTWARE.
 
 #import <objc/runtime.h>
+#import <CommonCrypto/CommonDigest.h>
 
 #if __IPHONE_OS_VERSION_MIN_REQUIRED
 #import "UIImageView+AFNetworking.h"
@@ -205,6 +206,23 @@ static inline NSString * AFImageCacheKeyFromURLRequest(NSURLRequest *request) {
 
 @implementation AFImageCache
 
+- (NSString*)md5OfString:(NSString*)str {
+	const char *cStr = [str UTF8String];
+	unsigned char result[CC_MD5_DIGEST_LENGTH];
+	CC_MD5( cStr, strlen(cStr), result );
+	return [NSString stringWithFormat:
+				@"%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X",
+				result[0], result[1], result[2], result[3],
+				result[4], result[5], result[6], result[7],
+				result[8], result[9], result[10], result[11],
+				result[12], result[13], result[14], result[15]
+			];
+}
+
+- (BOOL)pathExists:(NSString *)path {
+    return [[NSFileManager defaultManager] fileExistsAtPath:path];
+}
+
 - (UIImage *)cachedImageForRequest:(NSURLRequest *)request {
     switch ([request cachePolicy]) {
         case NSURLRequestReloadIgnoringCacheData:
@@ -213,15 +231,40 @@ static inline NSString * AFImageCacheKeyFromURLRequest(NSURLRequest *request) {
         default:
             break;
     }
-    
+
+    NSString *const path = [self cachePathForImageUrl:request.URL];
+    BOOL foundInCache = [self pathExists:path];
+    if ( foundInCache ) {
+        if ( ! [self objectForKey:AFImageCacheKeyFromURLRequest(request)] ) {
+            NSData *imageData = [NSData dataWithContentsOfFile:path];
+            [self setObject:[UIImage imageWithData:imageData] forKey:AFImageCacheKeyFromURLRequest(request)];
+        }
+    }
+
 	return [self objectForKey:AFImageCacheKeyFromURLRequest(request)];
+}
+
+- (NSString*)cachePathForImageUrl:(NSURL*)url {
+	NSArray *paths = NSSearchPathForDirectoriesInDomains(NSCachesDirectory, NSUserDomainMask, YES);
+	NSString *cachePath = [paths objectAtIndex:0];
+	NSString* filePath = [cachePath stringByAppendingPathComponent:[self md5OfString:[url absoluteString]]];
+
+	return filePath;
 }
 
 - (void)cacheImage:(UIImage *)image
         forRequest:(NSURLRequest *)request
 {
     if (image && request) {
-        [self setObject:image forKey:AFImageCacheKeyFromURLRequest(request)];
+        NSString *const path = [self cachePathForImageUrl:request.URL];
+        BOOL foundInCache = [self pathExists:path];
+
+        if ( ! foundInCache ) {
+            NSData *imageData = UIImageJPEGRepresentation(image, 1.0);
+            [imageData writeToFile:[self cachePathForImageUrl:request.URL] atomically:YES];
+
+            [self setObject:image forKey:AFImageCacheKeyFromURLRequest(request)];
+        }
     }
 }
 
