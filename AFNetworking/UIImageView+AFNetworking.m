@@ -130,7 +130,7 @@ static char kAFImageRequestOperationObjectKey;
     UIImage *cachedImage = [[[self class] af_sharedImageCache] cachedImageForRequest:urlRequest];
     if (cachedImage) {
         UIImage *imageToSet = cachedImage;
-        if ( newSize.height != 0 && newSize.width != 0 ) {
+        if ( !CGSizeEqualToSize(newSize, CGSizeZero) ) {
             UIImage *smallerImage = [imageToSet resizedImageWithContentMode:UIViewContentModeScaleAspectFit bounds:newSize interpolationQuality:kCGInterpolationMedium];
             imageToSet = smallerImage;
         }
@@ -138,7 +138,7 @@ static char kAFImageRequestOperationObjectKey;
         self.af_imageRequestOperation = nil;
 
         if (success) {
-            success(nil, nil, cachedImage);
+            success(nil, nil, imageToSet);
         }
     } else {
         UIViewContentMode oldContentMode = self.contentMode;
@@ -155,10 +155,11 @@ static char kAFImageRequestOperationObjectKey;
                 responseObject = smallerImage;
             }
 
+            UIImage *imageToSet = responseObject;
+
             if ([[urlRequest URL] isEqual:[[self.af_imageRequestOperation request] URL]]) {
                 self.contentMode = oldContentMode;
-                UIImage *imageToSet = responseObject;
-                if ( newSize.height != 0 && newSize.width != 0 ) {
+                if ( !CGSizeEqualToSize(newSize, CGSizeZero) ) {
                     UIImage *smallerImage = [imageToSet resizedImageWithContentMode:UIViewContentModeScaleAspectFit bounds:newSize interpolationQuality:kCGInterpolationMedium];
                     imageToSet = smallerImage;
                 }
@@ -168,7 +169,7 @@ static char kAFImageRequestOperationObjectKey;
             }
 
             if (success) {
-                success(operation.request, operation.response, responseObject);
+                success(operation.request, operation.response, imageToSet);
             }
 
             [[[self class] af_sharedImageCache] cacheImage:responseObject forRequest:urlRequest];
@@ -209,7 +210,7 @@ static inline NSString * AFImageCacheKeyFromURLRequest(NSURLRequest *request) {
 - (NSString*)md5OfString:(NSString*)str {
 	const char *cStr = [str UTF8String];
 	unsigned char result[CC_MD5_DIGEST_LENGTH];
-	CC_MD5( cStr, strlen(cStr), result );
+	CC_MD5( cStr, strlen(cStr), result ); // actually CC_MD5 is available for the deployment target (4.0), but not documented
 	return [NSString stringWithFormat:
 				@"%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X",
 				result[0], result[1], result[2], result[3],
