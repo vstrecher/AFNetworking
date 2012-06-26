@@ -20,12 +20,16 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
+#import <sys/types.h>
+#import <sys/stat.h>
+#import <unistd.h>
 #import <objc/runtime.h>
 #import <CommonCrypto/CommonDigest.h>
 
 #if __IPHONE_OS_VERSION_MIN_REQUIRED
 #import "UIImageView+AFNetworking.h"
 #import "UIImage+Resize.h"
+
 
 @interface AFImageCache : NSCache
 - (UIImage *)cachedImageForRequest:(NSURLRequest *)request;
@@ -127,68 +131,101 @@ static char kAFImageRequestOperationObjectKey;
 {
     [self cancelImageRequestOperation];
 
-    UIImage *cachedImage = [[[self class] af_sharedImageCache] cachedImageForRequest:urlRequest];
-    if (cachedImage) {
-        UIImage *imageToSet = cachedImage;
-        if ( !CGSizeEqualToSize(newSize, CGSizeZero) ) {
-            UIImage *smallerImage = [imageToSet resizedImageWithContentMode:UIViewContentModeScaleAspectFit bounds:newSize interpolationQuality:kCGInterpolationMedium];
-            imageToSet = smallerImage;
-        }
-        self.image = imageToSet;
+    // looking for not resized image in cache
+    UIImage *cachedImage = [[[self class] af_sharedImageCache] cachedImageForRequest:urlRequest size:CGSizeZero];
+
+    // looking for resized image in cache
+    UIImage *resizedCachedImage = nil;
+    if ( !CGSizeEqualToSize(newSize, CGSizeZero)) {
+        resizedCachedImage = [[[self class] af_sharedImageCache] cachedImageForRequest:urlRequest size:newSize];
+    }
+
+    if ( resizedCachedImage ) {
+        // if we have resized image to current size in cache - use it, nothing to download and cache
+
+        self.image = resizedCachedImage;
         self.af_imageRequestOperation = nil;
 
-        if (success) {
-            success(nil, nil, imageToSet);
+        if ( success ) {
+            success(nil, nil, resizedCachedImage);
         }
     } else {
-        UIViewContentMode oldContentMode = self.contentMode;
-        self.contentMode = UIViewContentModeCenter;
-        self.image = placeholderImage;
+        // if there is no resized image to current size
 
-        AFImageRequestOperation *requestOperation = [[[AFImageRequestOperation alloc] initWithRequest:urlRequest] autorelease];
-        [requestOperation setCompletionBlockWithSuccess:^(AFHTTPRequestOperation *operation, id responseObject) {
-            NSInteger iPadVersion = [[[NSUserDefaults standardUserDefaults] objectForKey:@"ipad-version"] integerValue];
+        if (cachedImage) {
+            // if there is original image
+            // resize it and cache resized image, nothing to download
 
-            if ( iPadVersion == 1 ) {
-                UIImage *responseImage = responseObject;
-                UIImage *smallerImage = [responseImage resizedImageWithContentMode:UIViewContentModeScaleAspectFit bounds:CGSizeMake(floorf(responseImage.size.width / 2.0), floorf(responseImage.size.height / 2.0)) interpolationQuality:kCGInterpolationMedium];
-                responseObject = smallerImage;
+            UIImage *imageToSet = cachedImage;
+            if ( !CGSizeEqualToSize(newSize, CGSizeZero) ) {
+                UIImage *smallerImage = [imageToSet resizedImageWithContentMode:UIViewContentModeScaleAspectFit bounds:newSize interpolationQuality:kCGInterpolationMedium];
+                imageToSet = smallerImage;
             }
-
-            UIImage *imageToSet = responseObject;
-
-            if ([[urlRequest URL] isEqual:[[self.af_imageRequestOperation request] URL]]) {
-                self.contentMode = oldContentMode;
-                if ( !CGSizeEqualToSize(newSize, CGSizeZero) ) {
-                    UIImage *smallerImage = [imageToSet resizedImageWithContentMode:UIViewContentModeScaleAspectFit bounds:newSize interpolationQuality:kCGInterpolationMedium];
-                    imageToSet = smallerImage;
-                }
-
-                self.image = imageToSet;
-                self.af_imageRequestOperation = nil;
-            }
+            self.image = imageToSet;
+            self.af_imageRequestOperation = nil;
 
             if (success) {
-                success(operation.request, operation.response, imageToSet);
+                success(nil, nil, imageToSet);
             }
 
-            [[[self class] af_sharedImageCache] cacheImage:responseObject forRequest:urlRequest];
+            [[[self class] af_sharedImageCache] cacheImage:imageToSet forRequest:urlRequest size:newSize];
+
+        } else {
+            // if we found nothing - download and cache both images (if newSize isn't ZeroSize)
+
+            UIViewContentMode oldContentMode = self.contentMode;
+            self.contentMode = UIViewContentModeCenter;
+            self.image = placeholderImage;
+
+            AFImageRequestOperation *requestOperation = [[[AFImageRequestOperation alloc] initWithRequest:urlRequest] autorelease];
+            [requestOperation setCompletionBlockWithSuccess:^(AFHTTPRequestOperation *operation, id responseObject) {
+                NSInteger iPadVersion = [[[NSUserDefaults standardUserDefaults] objectForKey:@"ipad-version"] integerValue];
+
+                if ( iPadVersion == 1 ) {
+                    UIImage *responseImage = responseObject;
+                    UIImage *smallerImage = [responseImage resizedImageWithContentMode:UIViewContentModeScaleAspectFit bounds:CGSizeMake(floorf(responseImage.size.width / 2.0), floorf(responseImage.size.height / 2.0)) interpolationQuality:kCGInterpolationMedium];
+                    responseObject = smallerImage;
+                }
+
+                UIImage *imageToSet = responseObject;
+
+                if ([[urlRequest URL] isEqual:[[self.af_imageRequestOperation request] URL]]) {
+                    self.contentMode = oldContentMode;
+                    if ( !CGSizeEqualToSize(newSize, CGSizeZero) ) {
+                        UIImage *smallerImage = [imageToSet resizedImageWithContentMode:UIViewContentModeScaleAspectFit bounds:newSize interpolationQuality:kCGInterpolationMedium];
+                        imageToSet = smallerImage;
+                    }
+
+                    self.image = imageToSet;
+                    self.af_imageRequestOperation = nil;
+                }
+
+                if (success) {
+                    success(operation.request, operation.response, imageToSet);
+                }
+
+                if ( ! CGSizeEqualToSize(newSize, CGSizeZero) ) {
+                    [[[self class] af_sharedImageCache] cacheImage:responseObject forRequest:urlRequest size:CGSizeZero];
+                }
+
+                [[[self class] af_sharedImageCache] cacheImage:imageToSet forRequest:urlRequest size:newSize];
 
 
-        } failure:^(AFHTTPRequestOperation *operation, NSError *error) {
-            if ([[urlRequest URL] isEqual:[[self.af_imageRequestOperation request] URL]]) {
-                self.af_imageRequestOperation = nil;
-            }
+            } failure:^(AFHTTPRequestOperation *operation, NSError *error) {
+                if ([[urlRequest URL] isEqual:[[self.af_imageRequestOperation request] URL]]) {
+                    self.af_imageRequestOperation = nil;
+                }
 
-            if (failure) {
-                failure(operation.request, operation.response, error);
-            }
+                if (failure) {
+                    failure(operation.request, operation.response, error);
+                }
 
-        }];
+            }];
 
-        self.af_imageRequestOperation = requestOperation;
+            self.af_imageRequestOperation = requestOperation;
 
-        [[[self class] af_sharedImageRequestOperationQueue] addOperation:self.af_imageRequestOperation];
+            [[[self class] af_sharedImageRequestOperationQueue] addOperation:self.af_imageRequestOperation];
+        }
     }
 }
 
@@ -203,6 +240,10 @@ static char kAFImageRequestOperationObjectKey;
 
 static inline NSString * AFImageCacheKeyFromURLRequest(NSURLRequest *request) {
     return [[request URL] absoluteString];
+}
+
+static inline NSString * AFImageCacheKeyFromURLRequestAndSize(NSURLRequest *request, CGSize size) {
+    return [[[request URL] absoluteString] stringByAppendingFormat:@"(%.0fx%.0f)", size.width, size.height];
 }
 
 @implementation AFImageCache
@@ -225,6 +266,10 @@ static inline NSString * AFImageCacheKeyFromURLRequest(NSURLRequest *request) {
 }
 
 - (UIImage *)cachedImageForRequest:(NSURLRequest *)request {
+    return [self cachedImageForRequest:request size:CGSizeZero];
+}
+
+- (UIImage *)cachedImageForRequest:(NSURLRequest *)request size:(CGSize)size {
     switch ([request cachePolicy]) {
         case NSURLRequestReloadIgnoringCacheData:
         case NSURLRequestReloadIgnoringLocalAndRemoteCacheData:
@@ -233,38 +278,89 @@ static inline NSString * AFImageCacheKeyFromURLRequest(NSURLRequest *request) {
             break;
     }
 
-    NSString *const path = [self cachePathForImageUrl:request.URL];
+    NSString *const path = [self cachePathForImageUrl:request.URL size:size];
     BOOL foundInCache = [self pathExists:path];
     if ( foundInCache ) {
-        if ( ! [self objectForKey:AFImageCacheKeyFromURLRequest(request)] ) {
+        if ( ! [self objectForKey:AFImageCacheKeyFromURLRequestAndSize(request, size)] ) {
             NSData *imageData = [NSData dataWithContentsOfFile:path];
-            [self setObject:[UIImage imageWithData:imageData] forKey:AFImageCacheKeyFromURLRequest(request)];
+            [self setObject:[UIImage imageWithData:imageData] forKey:AFImageCacheKeyFromURLRequestAndSize(request, size)];
         }
     }
 
-	return [self objectForKey:AFImageCacheKeyFromURLRequest(request)];
+    return [self objectForKey:AFImageCacheKeyFromURLRequestAndSize(request, size)];
 }
 
 - (NSString*)cachePathForImageUrl:(NSURL*)url {
-	NSArray *paths = NSSearchPathForDirectoriesInDomains(NSCachesDirectory, NSUserDomainMask, YES);
-	NSString *cachePath = [paths objectAtIndex:0];
-	NSString* filePath = [cachePath stringByAppendingPathComponent:[self md5OfString:[url absoluteString]]];
+	return [self cachePathForImageUrl:url size:CGSizeZero];
+}
 
-	return filePath;
+- (NSString *)cachePathForImages {
+    NSArray *paths = NSSearchPathForDirectoriesInDomains(NSCachesDirectory, NSUserDomainMask, YES);
+    NSString *cachePath = [[paths objectAtIndex:0] stringByAppendingPathComponent:kImagesCacheDirectory];
+
+    if ( ! [self pathExists:cachePath] ) {
+        [[NSFileManager defaultManager] createDirectoryAtPath:cachePath withIntermediateDirectories:YES attributes:nil error:nil];
+    }
+
+    // cache clearing
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{
+        NSArray *cachedImages = [[NSFileManager defaultManager] contentsOfDirectoryAtPath:cachePath error:nil];
+
+        for (NSString *image in cachedImages) {
+            NSString *imageFullPath = [cachePath stringByAppendingPathComponent:image];
+
+            struct stat output;
+            int ret = stat([imageFullPath fileSystemRepresentation], &output);
+
+            __darwin_time_t accessTime = output.st_atime;
+            time_t unixTime = (time_t)[[NSDate date] timeIntervalSince1970];
+            time_t delta = unixTime - accessTime;
+
+            if ( delta > kAllowedDeltaTimeForLastAccessedTime) {
+                [[NSFileManager defaultManager] removeItemAtPath:imageFullPath error:nil];
+            }
+        }
+
+    });
+
+    return cachePath;
+}
+
+- (NSString*)cachePathForImageUrl:(NSURL*)url size:(CGSize)size {
+    NSString *cachePath = [self cachePathForImages];
+    NSString *fileName;
+
+    if ( CGSizeEqualToSize(size, CGSizeZero) ) {
+        fileName = [url absoluteString];
+    } else {
+        fileName = [NSString stringWithFormat:@"%@(%.0fx%.0f)", [url absoluteString], size.width, size.height];
+    }
+
+    NSString* filePath = [cachePath stringByAppendingPathComponent:[self md5OfString:fileName]];
+
+    return filePath;
 }
 
 - (void)cacheImage:(UIImage *)image
         forRequest:(NSURLRequest *)request
 {
+    [self cacheImage:image forRequest:request size:CGSizeZero];
+}
+
+- (void)cacheImage:(UIImage *)image
+        forRequest:(NSURLRequest *)request
+              size:(CGSize)size
+{
     if (image && request) {
-        NSString *const path = [self cachePathForImageUrl:request.URL];
+        NSString *const path = [self cachePathForImageUrl:request.URL size:size];
         BOOL foundInCache = [self pathExists:path];
 
         if ( ! foundInCache ) {
             NSData *imageData = UIImageJPEGRepresentation(image, 1.0);
-            [imageData writeToFile:[self cachePathForImageUrl:request.URL] atomically:YES];
+            [imageData writeToFile:path atomically:YES];
 
-            [self setObject:image forKey:AFImageCacheKeyFromURLRequest(request)];
+            [self setObject:image forKey:AFImageCacheKeyFromURLRequestAndSize(request, size)];
         }
     }
 }
