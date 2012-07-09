@@ -142,6 +142,7 @@ static char kAFImageRequestOperationObjectKey;
 
     if ( resizedCachedImage ) {
         // if we have resized image to current size in cache - use it, nothing to download and cache
+        INFO(@"Found resized image: %@", urlRequest.URL);
 
         self.image = resizedCachedImage;
         self.af_imageRequestOperation = nil;
@@ -155,6 +156,7 @@ static char kAFImageRequestOperationObjectKey;
         if (cachedImage) {
             // if there is original image
             // resize it and cache resized image, nothing to download
+            INFO(@"Found original image: %@", urlRequest.URL);
 
             UIImage *imageToSet = cachedImage;
             if ( !CGSizeEqualToSize(newSize, CGSizeZero) ) {
@@ -172,6 +174,7 @@ static char kAFImageRequestOperationObjectKey;
 
         } else {
             // if we found nothing - download and cache both images (if newSize isn't ZeroSize)
+            INFO(@"Starting load for url: %@", urlRequest.URL);
 
             UIViewContentMode oldContentMode = self.contentMode;
             self.contentMode = UIViewContentModeCenter;
@@ -179,6 +182,7 @@ static char kAFImageRequestOperationObjectKey;
 
             AFImageRequestOperation *requestOperation = [[[AFImageRequestOperation alloc] initWithRequest:urlRequest] autorelease];
             [requestOperation setCompletionBlockWithSuccess:^(AFHTTPRequestOperation *operation, id responseObject) {
+                INFO(@"Loading completed: %@", urlRequest.URL);
                 NSInteger iPadVersion = [[[NSUserDefaults standardUserDefaults] objectForKey:@"ipad-version"] integerValue];
 
                 if ( iPadVersion == 1 ) {
@@ -212,6 +216,7 @@ static char kAFImageRequestOperationObjectKey;
 
 
             } failure:^(AFHTTPRequestOperation *operation, NSError *error) {
+                INFO(@"Loading failed: %@", urlRequest.URL);
                 if ([[urlRequest URL] isEqual:[[self.af_imageRequestOperation request] URL]]) {
                     self.af_imageRequestOperation = nil;
                 }
