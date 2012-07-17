@@ -173,8 +173,8 @@ static char kAFImageRequestOperationObjectKey;
         } else {
             // if we found nothing - download and cache both images (if newSize isn't ZeroSize)
 
-            UIViewContentMode oldContentMode = self.contentMode;
-            self.contentMode = UIViewContentModeCenter;
+            //UIViewContentMode oldContentMode = self.contentMode;
+            //self.contentMode = UIViewContentModeCenter;
             self.image = placeholderImage;
 
             AFImageRequestOperation *requestOperation = [[[AFImageRequestOperation alloc] initWithRequest:urlRequest] autorelease];
@@ -190,7 +190,7 @@ static char kAFImageRequestOperationObjectKey;
                 UIImage *imageToSet = responseObject;
 
                 if ([[urlRequest URL] isEqual:[[self.af_imageRequestOperation request] URL]]) {
-                    self.contentMode = oldContentMode;
+                    //self.contentMode = oldContentMode;
                     if ( !CGSizeEqualToSize(newSize, CGSizeZero) ) {
                         UIImage *smallerImage = [imageToSet resizedImageWithContentMode:UIViewContentModeScaleAspectFit bounds:newSize interpolationQuality:kCGInterpolationMedium];
                         imageToSet = smallerImage;
