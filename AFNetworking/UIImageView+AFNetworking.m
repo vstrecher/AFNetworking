@@ -28,13 +28,18 @@
 
 #if __IPHONE_OS_VERSION_MIN_REQUIRED
 #import "UIImageView+AFNetworking.h"
-#import "UIImage+Resize.h"
+#import "UIImageCategories/UIImage+Resize.h"
 
 
 @interface AFImageCache : NSCache
 - (UIImage *)cachedImageForRequest:(NSURLRequest *)request;
 - (void)cacheImage:(UIImage *)image
         forRequest:(NSURLRequest *)request;
+- (UIImage *)cachedImageForRequest:(NSURLRequest *)request 
+                              size:(CGSize)size;
+- (void)cacheImage:(UIImage *)image
+        forRequest:(NSURLRequest *)request
+              size:(CGSize)size;
 @end
 
 #pragma mark -
@@ -312,6 +317,7 @@ static inline NSString * AFImageCacheKeyFromURLRequestAndSize(NSURLRequest *requ
 
             struct stat output;
             int ret = stat([imageFullPath fileSystemRepresentation], &output);
+            (void)ret;
 
             __darwin_time_t accessTime = output.st_atime;
             time_t unixTime = (time_t)[[NSDate date] timeIntervalSince1970];
