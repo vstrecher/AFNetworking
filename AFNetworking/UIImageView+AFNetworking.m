@@ -29,6 +29,7 @@
 #if __IPHONE_OS_VERSION_MIN_REQUIRED
 #import "UIImageView+AFNetworking.h"
 #import "UIImage+Resize.h"
+#import "UIView+FrameAccessor.h"
 
 
 @interface AFImageCache : NSCache
@@ -94,13 +95,25 @@ static char kAFImageRequestOperationObjectKey;
     [self setImageWithURL:url placeholderImage:placeholderImage resizeTo:CGSizeZero];
 }
 
-- (void)setImageWithURL:(NSURL *)url placeholderImage:(UIImage *)placeholderImage resizeTo:(CGSize)newSize {
+- (void)setImageWithURL:(NSURL *)url
+       placeholderImage:(UIImage *)placeholderImage
+               resizeTo:(CGSize)newSize
+{
     NSMutableURLRequest *request = [NSMutableURLRequest requestWithURL:url cachePolicy:NSURLRequestUseProtocolCachePolicy timeoutInterval:30.0];
 //    [request setHTTPShouldHandleCookies:NO];
 //    [request setHTTPShouldUsePipelining:YES];
 
     [self setImageWithURLRequest:request placeholderImage:placeholderImage success:nil failure:nil resizeTo:newSize];
 }
+
+- (void)setImageWithURL:(NSURL *)url
+        placeholderView:(UIView *)placeholderView
+               resizeTo:(CGSize)newSize
+{
+    NSMutableURLRequest *request = [NSMutableURLRequest requestWithURL:url cachePolicy:NSURLRequestUseProtocolCachePolicy timeoutInterval:30.0];
+    [self setImageWithURLRequest:request placeholderImage:nil placeholderView:placeholderView success:nil failure:nil resizeTo:newSize];
+}
+
 
 - (void)setImageWithURL:(NSURL *)url
        placeholderImage:(UIImage *)placeholderImage
@@ -129,7 +142,20 @@ static char kAFImageRequestOperationObjectKey;
                        failure:(void (^)(NSURLRequest *request, NSHTTPURLResponse *response, NSError *error))failure
                       resizeTo:(CGSize)newSize
 {
+    [self setImageWithURLRequest:urlRequest placeholderImage:placeholderImage placeholderView:nil success:success failure:failure resizeTo:newSize];
+}
+
+- (void)setImageWithURLRequest:(NSURLRequest *)urlRequest
+              placeholderImage:(UIImage *)placeholderImage
+               placeholderView:(UIView *)placeholderView
+                       success:(void (^)(NSURLRequest *, NSHTTPURLResponse *, UIImage *))success
+                       failure:(void (^)(NSURLRequest *, NSHTTPURLResponse *, NSError *))failure
+                      resizeTo:(CGSize)newSize
+{
     [self cancelImageRequestOperation];
+
+    // removing placeholderView
+    [[self viewWithTag:118] removeFromSuperview];
 
     // looking for not resized image in cache
     UIImage *cachedImage = [[[self class] af_sharedImageCache] cachedImageForRequest:urlRequest size:CGSizeZero];
@@ -176,9 +202,20 @@ static char kAFImageRequestOperationObjectKey;
             // if we found nothing - download and cache both images (if newSize isn't ZeroSize)
 //            INFO(@"Starting load for url: %@", urlRequest.URL);
 
-            UIViewContentMode oldContentMode = self.contentMode;
-            self.contentMode = UIViewContentModeCenter;
-            self.image = placeholderImage;
+            UIImageView *placeholderImageView = nil;
+            if ( placeholderImage ) {
+                self.image = nil;
+                placeholderImageView = [[UIImageView alloc] initWithImage:placeholderImage];
+                [placeholderImageView sizeToFit];
+                [placeholderImageView setOrigin:CENTER_IN_PARENT(self, placeholderImageView.width, placeholderImageView.height)];
+                [self addSubview:placeholderImageView];
+                [placeholderImageView release];
+            } else if ( placeholderView ) {
+                self.image = nil;
+                [placeholderView setOrigin:CENTER_IN_PARENT_SIZE(newSize, placeholderView.width, placeholderView.height)];
+                [placeholderView setTag:118];
+                [self addSubview:placeholderView];
+            }
 
             AFImageRequestOperation *requestOperation = [[[AFImageRequestOperation alloc] initWithRequest:urlRequest] autorelease];
             [requestOperation setCompletionBlockWithSuccess:^(AFHTTPRequestOperation *operation, id responseObject) {
@@ -194,13 +231,35 @@ static char kAFImageRequestOperationObjectKey;
                 UIImage *imageToSet = responseObject;
 
                 if ([[urlRequest URL] isEqual:[[self.af_imageRequestOperation request] URL]]) {
-                    self.contentMode = oldContentMode;
                     if ( !CGSizeEqualToSize(newSize, CGSizeZero) ) {
                         UIImage *smallerImage = [imageToSet resizedImageWithContentMode:UIViewContentModeScaleAspectFit bounds:newSize interpolationQuality:kCGInterpolationMedium];
                         imageToSet = smallerImage;
                     }
 
-                    self.image = imageToSet;
+                    dispatch_async(dispatch_get_main_queue(), ^{
+                        self.image = imageToSet;
+                        UIView *placeholderView = [self viewWithTag:118];
+                        if ( placeholderView ) {
+                            [UIView animateWithDuration:0.2
+                                                  delay:0.0
+                                                options:UIViewAnimationOptionCurveEaseIn
+                                             animations:^{
+                                                 [placeholderView setAlpha:0.0];
+                                             } completion:^(BOOL completed) {
+                                [placeholderView removeFromSuperview];
+                            }];
+                        }
+
+
+                        if ( placeholderImageView ) {
+                            [UIView animateWithDuration:0.3 animations:^{
+                                [placeholderImageView setAlpha:0.0];
+                            } completion:^(BOOL completed) {
+                                [placeholderImageView removeFromSuperview];
+                            }];
+                        }
+                    });
+
                     self.af_imageRequestOperation = nil;
                 }
 
@@ -218,7 +277,8 @@ static char kAFImageRequestOperationObjectKey;
             } failure:^(AFHTTPRequestOperation *operation, NSError *error) {
 //                INFO(@"Loading failed: %@", urlRequest.URL);
                 if ([[urlRequest URL] isEqual:[[self.af_imageRequestOperation request] URL]]) {
-                    self.contentMode = oldContentMode;
+                    [placeholderImageView removeFromSuperview];
+                    [placeholderView removeFromSuperview];
                     self.af_imageRequestOperation = nil;
                 }
 
@@ -234,6 +294,7 @@ static char kAFImageRequestOperationObjectKey;
         }
     }
 }
+
 
 - (void)cancelImageRequestOperation {
     [self.af_imageRequestOperation cancel];
