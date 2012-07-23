@@ -378,7 +378,7 @@ static inline NSString * AFImageCacheKeyFromURLRequestAndSize(NSURLRequest *requ
             NSString *imageFullPath = [cachePath stringByAppendingPathComponent:image];
 
             struct stat output;
-            int ret = stat([imageFullPath fileSystemRepresentation], &output);
+            stat([imageFullPath fileSystemRepresentation], &output);
 
             __darwin_time_t accessTime = output.st_atime;
             time_t unixTime = (time_t)[[NSDate date] timeIntervalSince1970];
