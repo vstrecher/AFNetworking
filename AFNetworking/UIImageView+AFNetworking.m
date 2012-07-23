@@ -218,6 +218,7 @@ static char kAFImageRequestOperationObjectKey;
             } failure:^(AFHTTPRequestOperation *operation, NSError *error) {
 //                INFO(@"Loading failed: %@", urlRequest.URL);
                 if ([[urlRequest URL] isEqual:[[self.af_imageRequestOperation request] URL]]) {
+                    self.contentMode = oldContentMode;
                     self.af_imageRequestOperation = nil;
                 }
 
