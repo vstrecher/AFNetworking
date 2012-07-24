@@ -301,6 +301,12 @@ static char kAFImageRequestOperationObjectKey;
     self.af_imageRequestOperation = nil;
 }
 
++ (void)loadImageWithURL:(NSURL *)imageURL {
+    UIImageView *fakeImageView = [[UIImageView alloc] init];
+    [fakeImageView setImageWithURL:imageURL];
+    [fakeImageView release];
+}
+
 @end
 
 #pragma mark -

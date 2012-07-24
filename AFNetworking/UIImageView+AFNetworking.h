@@ -101,6 +101,9 @@
 
 - (void)cancelImageRequestOperation;
 
++ (void)loadImageWithURL:(NSURL *)imageURL;
+
+
 @end
 
 #endif
