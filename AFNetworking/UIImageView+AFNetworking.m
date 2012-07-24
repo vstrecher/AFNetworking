@@ -25,6 +25,7 @@
 #import <unistd.h>
 #import <objc/runtime.h>
 #import <CommonCrypto/CommonDigest.h>
+#import <CoreGraphics/CoreGraphics.h>
 
 #if __IPHONE_OS_VERSION_MIN_REQUIRED
 #import "UIImageView+AFNetworking.h"
@@ -224,8 +225,10 @@ static char kAFImageRequestOperationObjectKey;
 
                 if ( iPadVersion == 1 ) {
                     UIImage *responseImage = responseObject;
-                    UIImage *smallerImage = [responseImage resizedImageWithContentMode:UIViewContentModeScaleAspectFit bounds:CGSizeMake(floorf(responseImage.size.width / 2.0), floorf(responseImage.size.height / 2.0)) interpolationQuality:kCGInterpolationMedium];
-                    responseObject = smallerImage;
+                    if ( responseImage.size.width > 2000 || responseImage.size.height > 800 ) {
+                        UIImage *smallerImage = [responseImage resizedImageWithContentMode:UIViewContentModeScaleAspectFit bounds:CGSizeMake(floorf(responseImage.size.width / 2.0), floorf(responseImage.size.height / 2.0)) interpolationQuality:kCGInterpolationMedium];
+                        responseObject = smallerImage;
+                    }
                 }
 
                 UIImage *imageToSet = responseObject;
@@ -238,15 +241,15 @@ static char kAFImageRequestOperationObjectKey;
 
                     dispatch_async(dispatch_get_main_queue(), ^{
                         self.image = imageToSet;
-                        UIView *placeholderView = [self viewWithTag:118];
-                        if ( placeholderView ) {
+                        UIView *placeholderSubview = [self viewWithTag:118];
+                        if ( placeholderSubview ) {
                             [UIView animateWithDuration:0.2
                                                   delay:0.0
                                                 options:UIViewAnimationOptionCurveEaseIn
                                              animations:^{
-                                                 [placeholderView setAlpha:0.0];
+                                                 [placeholderSubview setAlpha:0.0];
                                              } completion:^(BOOL completed) {
-                                [placeholderView removeFromSuperview];
+                                [placeholderSubview removeFromSuperview];
                             }];
                         }
 
