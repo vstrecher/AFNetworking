@@ -75,7 +75,7 @@ AFNetworking is architected to be as small and modular as possible, in order to 
   <tr><th colspan="2" style="text-align:center;">Images</th></tr>
   <tr>
     <td><a href="http://afnetworking.org/Documentation/Classes/AFImageRequestOperation.html">AFImageRequestOperation</a></td>
-    <td>A subclass of <tt>AFHTTPRequestOperation</tt> for downloading an processing images.</td>
+    <td>A subclass of <tt>AFHTTPRequestOperation</tt> for downloading and processing images.</td>
   </tr>
   <tr>
     <td><a href="http://afnetworking.org/Documentation/Categories/UIImageView+AFNetworking.html">UIImageView+AFNetworking</a></td>
@@ -124,8 +124,8 @@ NSMutableURLRequest *request = [httpClient multipartFormRequestWithMethod:@"POST
 }];
 
 AFHTTPRequestOperation *operation = [[[AFHTTPRequestOperation alloc] initWithRequest:request] autorelease];
-[operation setUploadProgressBlock:^(NSInteger bytesWritten, NSInteger totalBytesWritten, NSInteger totalBytesExpectedToWrite) {
-    NSLog(@"Sent %d of %d bytes", totalBytesWritten, totalBytesExpectedToWrite);
+[operation setUploadProgressBlock:^(NSInteger bytesWritten, long long totalBytesWritten, long long totalBytesExpectedToWrite) {
+    NSLog(@"Sent %lld of %lld bytes", totalBytesWritten, totalBytesExpectedToWrite);
 }];
 [operation start];
 ```
@@ -143,7 +143,7 @@ operation.outputStream = [NSOutputStream outputStreamToMemory];
 
 ## Requirements
 
-AFNetworking requires either [iOS 4.0](http://developer.apple.com/library/ios/#releasenotes/General/WhatsNewIniPhoneOS/Articles/iPhoneOS4.html) and above, or [Mac OS 10.6](http://developer.apple.com/library/mac/#releasenotes/MacOSX/WhatsNewInOSX/Articles/MacOSX10_6.html#//apple_ref/doc/uid/TP40008898-SW7) and above.
+AFNetworking requires either [iOS 4.0](http://developer.apple.com/library/ios/#releasenotes/General/WhatsNewIniPhoneOS/Articles/iPhoneOS4.html) and above, or [Mac OS 10.6](http://developer.apple.com/library/mac/#releasenotes/MacOSX/WhatsNewInOSX/Articles/MacOSX10_6.html#//apple_ref/doc/uid/TP40008898-SW7) ([64-bit with modern Cocoa runtime](https://developer.apple.com/library/mac/#documentation/Cocoa/Conceptual/ObjCRuntimeGuide/Articles/ocrtVersionsPlatforms.html)) and above.
 
 AFNetworking uses [`NSJSONSerialization`](http://developer.apple.com/library/mac/#documentation/Foundation/Reference/NSJSONSerialization_Class/Reference/Reference.html) if it is available. If your app targets a platform where this class is not available you can include one of the following JSON libraries to your project for AFNetworking to automatically detect and use.
 
@@ -156,13 +156,11 @@ AFNetworking uses [`NSJSONSerialization`](http://developer.apple.com/library/mac
 
 AFNetworking will transition its codebase to ARC in a future release.
 
-If you are including AFNetworking in a project that uses [Automatic Reference Counting (ARC)](http://clang.llvm.org/docs/AutomaticReferenceCounting.html) enabled, you will need to set the `-fno-objc-arc` compiler flag on all of the AFNetworking source files. To do this in Xcode, go to your active target and select the "Build Phases" tab. In the "Compiler Flags" column, set `-fno-objc-arc` for each of the AFNetworking source files.
+If you are including AFNetworking in a project that uses [Automatic Reference Counting (ARC)](http://clang.llvm.org/docs/AutomaticReferenceCounting.html) enabled, you will need to set the `-fno-objc-arc` compiler flag on all of the AFNetworking source files. To do this in Xcode, go to your active target and select the "Build Phases" tab. Now select all AFNetworking source files, press Enter, insert `-fno-objc-arc` and then "Done" to disable ARC for AFNetworking.
 
 ## Credits
 
 AFNetworking was created by [Scott Raymond](https://github.com/sco/) and [Mattt Thompson](https://github.com/mattt/) in the development of [Gowalla for iPhone](http://en.wikipedia.org/wiki/Gowalla).
-
-[TTTLocationFormatter](https://github.com/mattt/FormatterKit/tree/master/TTTLocationFormatter), used in the example project, is part of [FormatterKit](https://github.com/mattt/FormatterKit), created by [Mattt Thompson](https://github.com/mattt/).
 
 AFNetworking's logo was designed by [Alan Defibaugh](http://www.alandefibaugh.com/).
 
@@ -170,16 +168,15 @@ And most of all, thanks to AFNetworking's [growing list of contributors](https:/
 
 ## Contact
 
-Mattt Thompson
+Follow AFNetworking on Twitter ([@AFNetworking](https://twitter.com/AFNetworking))
 
-- http://github.com/mattt
-- http://twitter.com/mattt
-- m@mattt.me
+### Creators
 
-Scott Raymond
+[Mattt Thompson](http://github.com/mattt)  
+[@mattt](https://twitter.com/mattt)
 
-- http://github.com/sco
-- http://twitter.com/sco
+[Scott Raymond](http://github.com/sco)  
+[@sco](https://twitter.com/sco)
 
 ## License
 
