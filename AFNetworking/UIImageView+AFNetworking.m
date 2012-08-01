@@ -225,7 +225,7 @@ static char kAFImageRequestOperationObjectKey;
 
                 if ( iPadVersion == 1 ) {
                     UIImage *responseImage = responseObject;
-                    if ( responseImage.size.width > 2000 || responseImage.size.height > 800 ) {
+                    if ( responseImage.size.width > 1024 || responseImage.size.height > 768 ) {
                         UIImage *smallerImage = [responseImage resizedImageWithContentMode:UIViewContentModeScaleAspectFit bounds:CGSizeMake(floorf(responseImage.size.width / 2.0), floorf(responseImage.size.height / 2.0)) interpolationQuality:kCGInterpolationMedium];
                         responseObject = smallerImage;
                     }
@@ -323,6 +323,26 @@ static inline NSString * AFImageCacheKeyFromURLRequestAndSize(NSURLRequest *requ
 }
 
 @implementation AFImageCache
+
+- (void)memoryWarningReceived {
+    INFO(@"Removing all images from the cache");
+    [self removeAllObjects];
+}
+
+- (id)init {
+    self = [super init];
+    if (self) {
+        [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(memoryWarningReceived) name:UIApplicationDidReceiveMemoryWarningNotification object:nil];
+    }
+
+    return self;
+}
+
+- (void)dealloc {
+    [[NSNotificationCenter defaultCenter] removeObserver:self name:UIApplicationDidReceiveMemoryWarningNotification object:nil];
+    [super dealloc];
+}
+
 
 - (NSString*)md5OfString:(NSString*)str {
 	const char *cStr = [str UTF8String];
