@@ -322,6 +322,10 @@ static inline NSString * AFImageCacheKeyFromURLRequestAndSize(NSURLRequest *requ
     return [[[request URL] absoluteString] stringByAppendingFormat:@"(%.0fx%.0f)", size.width, size.height];
 }
 
+static inline NSInteger iPadVersion() {
+    return [[[NSUserDefaults standardUserDefaults] objectForKey:@"ipad-version"] integerValue];
+};
+
 @implementation AFImageCache
 
 - (void)memoryWarningReceived {
@@ -333,6 +337,14 @@ static inline NSString * AFImageCacheKeyFromURLRequestAndSize(NSURLRequest *requ
     self = [super init];
     if (self) {
         [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(memoryWarningReceived) name:UIApplicationDidReceiveMemoryWarningNotification object:nil];
+
+        // if device is ipad1, caching only 30 images and less than 3 mb total size
+        if ( iPadVersion() == 1 || YES ) {
+            [self setCountLimit:30];
+            [self setTotalCostLimit:3145728]; //3 mb
+        }
+
+        INFO(@"Cache created with totalCostLimit: %d countLimit: %d", self.totalCostLimit, self.countLimit);
     }
 
     return self;
