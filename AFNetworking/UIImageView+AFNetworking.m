@@ -339,7 +339,7 @@ static inline NSInteger iPadVersion() {
         [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(memoryWarningReceived) name:UIApplicationDidReceiveMemoryWarningNotification object:nil];
 
         // if device is ipad1, caching only 30 images and less than 3 mb total size
-        if ( iPadVersion() == 1 || YES ) {
+        if ( iPadVersion() == 1 ) {
             [self setCountLimit:30];
             [self setTotalCostLimit:3145728]; //3 mb
         }
