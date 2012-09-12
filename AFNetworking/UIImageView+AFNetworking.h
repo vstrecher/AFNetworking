@@ -57,6 +57,10 @@
 
 - (void)setImageWithURL:(NSURL *)url
        placeholderImage:(UIImage *)placeholderImage
+	  trimWithTolerance:(int)tolerance;
+
+- (void)setImageWithURL:(NSURL *)url
+       placeholderImage:(UIImage *)placeholderImage
                resizeTo:(CGSize)newSize;
 
 - (void)setImageWithURL:(NSURL *)url
@@ -87,6 +91,14 @@
                        success:(void (^)(NSURLRequest *, NSHTTPURLResponse *, UIImage *))success
                        failure:(void (^)(NSURLRequest *, NSHTTPURLResponse *, NSError *))failure
                       resizeTo:(CGSize)newSize;
+
+- (void)setImageWithURLRequest:(NSURLRequest *)urlRequest
+              placeholderImage:(UIImage *)placeholderImage
+				       success:(void (^)(NSURLRequest *, NSHTTPURLResponse *, UIImage *))success
+					   failure:(void (^)(NSURLRequest *, NSHTTPURLResponse *, NSError *))failure
+					  resizeTo:(CGSize)newSize
+			 trimWithTolerance:(int)tolerance;
+
 
 
 - (void)cancelImageRequestOperation;

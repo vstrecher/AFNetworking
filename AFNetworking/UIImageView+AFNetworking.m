@@ -29,6 +29,7 @@
 #if __IPHONE_OS_VERSION_MIN_REQUIRED
 #import "UIImageView+AFNetworking.h"
 #import "UIImageCategories/UIImage+Resize.h"
+#import "UIImageCategories/UIImage+Extensions.h"
 
 
 @interface AFImageCache : NSCache
@@ -99,6 +100,12 @@ static char kAFImageRequestOperationObjectKey;
     [self setImageWithURL:url placeholderImage:placeholderImage resizeTo:CGSizeZero];
 }
 
+- (void)setImageWithURL:(NSURL *)url placeholderImage:(UIImage *)placeholderImage trimWithTolerance:(int)tolerance
+{
+	NSMutableURLRequest *request = [NSMutableURLRequest requestWithURL:url cachePolicy:NSURLRequestUseProtocolCachePolicy timeoutInterval:30.0];
+	[self setImageWithURLRequest:request placeholderImage:placeholderImage success:nil failure:nil resizeTo:CGSizeZero trimWithTolerance:tolerance];
+}
+
 - (void)setImageWithURL:(NSURL *)url placeholderImage:(UIImage *)placeholderImage resizeTo:(CGSize)newSize {
     NSMutableURLRequest *request = [NSMutableURLRequest requestWithURL:url cachePolicy:NSURLRequestUseProtocolCachePolicy timeoutInterval:30.0];
 //    [request setHTTPShouldHandleCookies:NO];
@@ -134,6 +141,16 @@ static char kAFImageRequestOperationObjectKey;
                        failure:(void (^)(NSURLRequest *request, NSHTTPURLResponse *response, NSError *error))failure
                       resizeTo:(CGSize)newSize
 {
+	[self setImageWithURLRequest:urlRequest placeholderImage:placeholderImage success:success failure:failure resizeTo:newSize trimWithTolerance:-1];
+}
+
+- (void)setImageWithURLRequest:(NSURLRequest *)urlRequest
+              placeholderImage:(UIImage *)placeholderImage
+				       success:(void (^)(NSURLRequest *, NSHTTPURLResponse *, UIImage *))success
+					   failure:(void (^)(NSURLRequest *, NSHTTPURLResponse *, NSError *))failure
+					  resizeTo:(CGSize)newSize
+			 trimWithTolerance:(int)tolerance
+{
     [self cancelImageRequestOperation];
 
     // looking for not resized image in cache
@@ -166,7 +183,11 @@ static char kAFImageRequestOperationObjectKey;
                 UIImage *smallerImage = [imageToSet resizedImageWithContentMode:UIViewContentModeScaleAspectFit bounds:newSize interpolationQuality:kCGInterpolationMedium];
                 imageToSet = smallerImage;
             }
-            self.image = imageToSet;
+	        if (tolerance >= 0) {
+		        self.image = [imageToSet trimmedImageWithColor:nil tolerance:tolerance];
+	        } else {
+		        self.image = imageToSet;
+	        }
             self.af_imageRequestOperation = nil;
 
             if (success) {
@@ -201,7 +222,11 @@ static char kAFImageRequestOperationObjectKey;
                         imageToSet = smallerImage;
                     }
 
-                    self.image = imageToSet;
+	                if (tolerance >= 0) {
+		                self.image = [imageToSet trimmedImageWithColor:nil tolerance:tolerance];
+	                } else {
+		                self.image = imageToSet;
+	                }
                     self.af_imageRequestOperation = nil;
                 }
 
