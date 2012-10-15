@@ -32,19 +32,12 @@
 #import "UIImage+Resize.h"
 #import "UIView+FrameAccessor.h"
 
-
-@interface AFImageCache : NSCache
-- (UIImage *)cachedImageForRequest:(NSURLRequest *)request;
-- (void)cacheImage:(UIImage *)image
-        forRequest:(NSURLRequest *)request;
-@end
-
 #pragma mark -
 
 static char kAFImageRequestOperationObjectKey;
 
 @interface UIImageView (_AFNetworking)
-@property (readwrite, nonatomic, retain, setter = af_setImageRequestOperation:) AFImageRequestOperation *af_imageRequestOperation;
+@property (readwrite, nonatomic, retain, setter = af_setImageRequestOperation:) AFHTTPRequestOperation *af_imageRequestOperation;
 @end
 
 @implementation UIImageView (_AFNetworking)
@@ -218,20 +211,21 @@ static char kAFImageRequestOperationObjectKey;
                 [self addSubview:placeholderView];
             }
 
-            AFImageRequestOperation *requestOperation = [[[AFImageRequestOperation alloc] initWithRequest:urlRequest] autorelease];
+            AFHTTPRequestOperation *requestOperation = [[[AFHTTPRequestOperation alloc] initWithRequest:urlRequest] autorelease];
             [requestOperation setCompletionBlockWithSuccess:^(AFHTTPRequestOperation *operation, id responseObject) {
 //                INFO(@"Loading completed: %@", urlRequest.URL);
                 NSInteger iPadVersion = [[[NSUserDefaults standardUserDefaults] objectForKey:@"ipad-version"] integerValue];
 
+                UIImage *responseImage = [UIImage imageWithData:responseObject];
+
                 if ( iPadVersion == 1 ) {
-                    UIImage *responseImage = responseObject;
                     if ( responseImage.size.width > 1024 || responseImage.size.height > 768 ) {
                         UIImage *smallerImage = [responseImage resizedImageWithContentMode:UIViewContentModeScaleAspectFit bounds:CGSizeMake(floorf(responseImage.size.width / 2.0), floorf(responseImage.size.height / 2.0)) interpolationQuality:kCGInterpolationMedium];
-                        responseObject = smallerImage;
+                        responseImage = smallerImage;
                     }
                 }
 
-                UIImage *imageToSet = responseObject;
+                UIImage *imageToSet = responseImage;
 
                 if ([[urlRequest URL] isEqual:[[self.af_imageRequestOperation request] URL]]) {
                     if ( !CGSizeEqualToSize(newSize, CGSizeZero) ) {
@@ -271,7 +265,7 @@ static char kAFImageRequestOperationObjectKey;
                 }
 
                 if ( ! CGSizeEqualToSize(newSize, CGSizeZero) ) {
-                    [[[self class] af_sharedImageCache] cacheImage:responseObject forRequest:urlRequest size:CGSizeZero];
+                    [[[self class] af_sharedImageCache] cacheImage:responseImage forRequest:urlRequest size:CGSizeZero];
                 }
 
                 [[[self class] af_sharedImageCache] cacheImage:imageToSet forRequest:urlRequest size:newSize];
@@ -355,6 +349,31 @@ static inline NSInteger iPadVersion() {
     [super dealloc];
 }
 
+- (void)dropCache {
+    INFO(@"");
+    [self removeAllObjects];
+
+    NSArray *paths = NSSearchPathForDirectoriesInDomains(NSCachesDirectory, NSUserDomainMask, YES);
+    NSString *cachePath = [[paths objectAtIndex:0] stringByAppendingPathComponent:kImagesCacheDirectory];
+
+    if ( [self pathExists:cachePath] ) {
+        INFO(@"Cache directory exists. Dropping.");
+        NSArray *cachedImages = [[NSFileManager defaultManager] contentsOfDirectoryAtPath:cachePath error:nil];
+
+        for (NSString *image in cachedImages) {
+            NSString *imageFullPath = [cachePath stringByAppendingPathComponent:image];
+
+            NSError *error = nil;
+            BOOL result = [[NSFileManager defaultManager] removeItemAtPath:imageFullPath error:&error];
+
+            if ( ! result ) {
+                INFO(@"Error while removing(%@):%@", imageFullPath, error);
+            }
+        }
+    } else {
+        INFO(@"There is no cache directory.");
+    }
+}
 
 - (NSString*)md5OfString:(NSString*)str {
 	const char *cStr = [str UTF8String];
