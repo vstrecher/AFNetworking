@@ -30,6 +30,19 @@
 #define kAllowedDeltaTimeForLastAccessedTime 2592000
 #define kImagesCacheDirectory @"archerImages"
 
+#define kImageViewPlaceholderImageViewTag 122
+#define kImageViewPlaceholderViewTag 118
+static inline BOOL CGSizeAlmostEqualToSize(CGSize size1, CGSize size2) {
+    CGFloat dx = fabsf(size1.width - size2.width);
+    CGFloat dy = fabsf(size1.height - size2.height);
+
+    return dx <= 2.0 && dy <= 2.0;
+}
+
+static inline NSInteger iPadVersion() {
+    return [[[NSUserDefaults standardUserDefaults] objectForKey:@"ipad-version"] integerValue];
+};
+
 @interface AFImageCache : NSCache
 - (void)dropCache;
 
@@ -44,6 +57,10 @@
         forRequest:(NSURLRequest *)request;
 
 - (void)cacheImage:(UIImage *)image forRequest:(NSURLRequest *)request size:(CGSize)size;
+
+/* Force means we will overwrite existing cache file if needed */
+- (void)cacheImage:(UIImage *)image forRequest:(NSURLRequest *)request size:(CGSize)size force:(BOOL)force;
+
 
 @end
 
@@ -80,6 +97,12 @@
 
 - (void)setImageWithURL:(NSURL *)url
         placeholderView:(UIView *)placeholderView
+               resizeTo:(CGSize)newSize;
+
+- (void)setImageWithURL:(NSURL *)url
+        placeholderView:(UIView *)placeholderView
+        success:(void (^)(NSURLRequest *, NSHTTPURLResponse *, UIImage *))success
+        failure:(void (^)(NSURLRequest *, NSHTTPURLResponse *, NSError *))failure
                resizeTo:(CGSize)newSize;
 
 - (void)setImageWithURL:(NSURL *)url

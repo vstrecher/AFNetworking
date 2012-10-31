@@ -31,6 +31,7 @@
 #import "UIImageView+AFNetworking.h"
 #import "UIImage+Resize.h"
 #import "UIView+FrameAccessor.h"
+#import "NSOperationStack.h"
 
 #pragma mark -
 
@@ -56,15 +57,19 @@ static char kAFImageRequestOperationObjectKey;
     objc_setAssociatedObject(self, &kAFImageRequestOperationObjectKey, imageRequestOperation, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
 }
 
-+ (NSOperationQueue *)af_sharedImageRequestOperationQueue {
-    static NSOperationQueue *_af_imageRequestOperationQueue = nil;
++ (NSOperationStack *)af_sharedImageRequestOperationStack {
+    static NSOperationStack *_af_imageRequestOperationStack = nil;
+    static dispatch_once_t operationStackToken;
 
-    if (!_af_imageRequestOperationQueue) {
-        _af_imageRequestOperationQueue = [[NSOperationQueue alloc] init];
-        [_af_imageRequestOperationQueue setMaxConcurrentOperationCount:8];
-    }
-
-    return _af_imageRequestOperationQueue;
+    dispatch_once(&operationStackToken, ^{
+        _af_imageRequestOperationStack = [[NSOperationStack alloc] init];
+        if ( 1 == iPadVersion() ) {
+            [_af_imageRequestOperationStack setMaxConcurrentOperationCount:4];
+        } else {
+            [_af_imageRequestOperationStack setMaxConcurrentOperationCount:8];
+        }
+    });
+    return _af_imageRequestOperationStack;
 }
 
 + (AFImageCache *)af_sharedImageCache {
@@ -75,6 +80,16 @@ static char kAFImageRequestOperationObjectKey;
     });
 
     return _af_imageCache;
+}
+
++ (NSMutableDictionary *)af_associatedImageViewsDictionary {
+    static NSMutableDictionary *_af_associatedImageViews = nil;
+    static dispatch_once_t associatedImageViewsToken;
+    dispatch_once(&associatedImageViewsToken, ^{
+        _af_associatedImageViews = [[NSMutableDictionary alloc] init];
+    });
+
+    return _af_associatedImageViews;
 }
 
 #pragma mark -
@@ -108,6 +123,15 @@ static char kAFImageRequestOperationObjectKey;
     [self setImageWithURLRequest:request placeholderImage:nil placeholderView:placeholderView success:nil failure:nil resizeTo:newSize];
 }
 
+- (void)setImageWithURL:(NSURL *)url
+        placeholderView:(UIView *)placeholderView
+                success:(void (^)(NSURLRequest *, NSHTTPURLResponse *, UIImage *))success
+                failure:(void (^)(NSURLRequest *, NSHTTPURLResponse *, NSError *))failure
+               resizeTo:(CGSize)newSize
+{
+    NSMutableURLRequest *request = [NSMutableURLRequest requestWithURL:url cachePolicy:NSURLRequestUseProtocolCachePolicy timeoutInterval:30.0];
+    [self setImageWithURLRequest:request placeholderImage:nil placeholderView:placeholderView success:success failure:failure resizeTo:newSize];
+}
 
 - (void)setImageWithURL:(NSURL *)url
        placeholderImage:(UIImage *)placeholderImage
@@ -149,7 +173,9 @@ static char kAFImageRequestOperationObjectKey;
     [self cancelImageRequestOperation];
 
     // removing placeholderView
-    [[self viewWithTag:118] removeFromSuperview];
+    [[self viewWithTag:kImageViewPlaceholderViewTag] removeFromSuperview];
+
+//    INFO(@"Searching for image with url:%@ size:%@", urlRequest.URL, NSStringFromCGSize(newSize));
 
     // looking for not resized image in cache
     UIImage *cachedImage = [[[self class] af_sharedImageCache] cachedImageForRequest:urlRequest size:CGSizeZero];
@@ -160,46 +186,56 @@ static char kAFImageRequestOperationObjectKey;
         resizedCachedImage = [[[self class] af_sharedImageCache] cachedImageForRequest:urlRequest size:newSize];
     }
 
-    if ( resizedCachedImage ) {
+    // Sizes also must be equal
+    if ( resizedCachedImage && CGSizeAlmostEqualToSize(resizedCachedImage.size, newSize) ) {
         // if we have resized image to current size in cache - use it, nothing to download and cache
-//        INFO(@"Found resized image: %@", urlRequest.URL);
+//        INFO(@"Found resized image: %@[%@]", urlRequest.URL, NSStringFromCGSize(resizedCachedImage.size));
 
-        self.image = resizedCachedImage;
         self.af_imageRequestOperation = nil;
 
-        if ( success ) {
-            success(nil, nil, resizedCachedImage);
-        }
+        dispatch_async(dispatch_get_main_queue(), ^{
+            self.image = resizedCachedImage;
+
+            if ( success ) {
+                success(nil, nil, resizedCachedImage);
+            }
+        });
+
     } else {
         // if there is no resized image to current size
 
         if (cachedImage) {
             // if there is original image
             // resize it and cache resized image, nothing to download
-//            INFO(@"Found original image: %@", urlRequest.URL);
+//            INFO(@"Found original image: %@. Resizing to %@", urlRequest.URL, NSStringFromCGSize(newSize));
 
             UIImage *imageToSet = cachedImage;
             if ( !CGSizeEqualToSize(newSize, CGSizeZero) ) {
                 UIImage *smallerImage = [imageToSet resizedImageWithContentMode:UIViewContentModeScaleAspectFit bounds:newSize interpolationQuality:kCGInterpolationMedium];
                 imageToSet = smallerImage;
             }
-            self.image = imageToSet;
+
             self.af_imageRequestOperation = nil;
 
-            if (success) {
-                success(nil, nil, imageToSet);
-            }
+            dispatch_async(dispatch_get_main_queue(), ^{
+                self.image = imageToSet;
 
-            [[[self class] af_sharedImageCache] cacheImage:imageToSet forRequest:urlRequest size:newSize];
+                if (success) {
+                    success(nil, nil, imageToSet);
+                }
+            });
+
+            // Using force caching to overwrite existing file
+            [[[self class] af_sharedImageCache] cacheImage:imageToSet forRequest:urlRequest size:newSize force:YES];
 
         } else {
             // if we found nothing - download and cache both images (if newSize isn't ZeroSize)
-//            INFO(@"Starting load for url: %@", urlRequest.URL);
 
             UIImageView *placeholderImageView = nil;
             if ( placeholderImage ) {
                 self.image = nil;
                 placeholderImageView = [[UIImageView alloc] initWithImage:placeholderImage];
+                [placeholderImageView setTag:kImageViewPlaceholderImageViewTag];
                 [placeholderImageView sizeToFit];
                 [placeholderImageView setOrigin:CENTER_IN_PARENT(self, placeholderImageView.width, placeholderImageView.height)];
                 [self addSubview:placeholderImageView];
@@ -207,19 +243,17 @@ static char kAFImageRequestOperationObjectKey;
             } else if ( placeholderView ) {
                 self.image = nil;
                 [placeholderView setOrigin:CENTER_IN_PARENT_SIZE(newSize, placeholderView.width, placeholderView.height)];
-                [placeholderView setTag:118];
+                [placeholderView setTag:kImageViewPlaceholderViewTag];
                 [self addSubview:placeholderView];
             }
 
-            AFHTTPRequestOperation *requestOperation = [[[AFHTTPRequestOperation alloc] initWithRequest:urlRequest] autorelease];
-            [requestOperation setCompletionBlockWithSuccess:^(AFHTTPRequestOperation *operation, id responseObject) {
+            void (^requestOperationSuccess)(AFHTTPRequestOperation *, id) = ^(AFHTTPRequestOperation *operation, id responseObject) {
 //                INFO(@"Loading completed: %@", urlRequest.URL);
-                NSInteger iPadVersion = [[[NSUserDefaults standardUserDefaults] objectForKey:@"ipad-version"] integerValue];
 
                 UIImage *responseImage = [UIImage imageWithData:responseObject];
 
-                if ( iPadVersion == 1 ) {
-                    if ( responseImage.size.width > 1024 || responseImage.size.height > 768 ) {
+                if (1 == iPadVersion()) {
+                    if (responseImage.size.width > 1024 || responseImage.size.height > 768) {
                         UIImage *smallerImage = [responseImage resizedImageWithContentMode:UIViewContentModeScaleAspectFit bounds:CGSizeMake(floorf(responseImage.size.width / 2.0), floorf(responseImage.size.height / 2.0)) interpolationQuality:kCGInterpolationMedium];
                         responseImage = smallerImage;
                     }
@@ -228,70 +262,165 @@ static char kAFImageRequestOperationObjectKey;
                 UIImage *imageToSet = responseImage;
 
                 if ([[urlRequest URL] isEqual:[[self.af_imageRequestOperation request] URL]]) {
-                    if ( !CGSizeEqualToSize(newSize, CGSizeZero) ) {
+                    if (!CGSizeEqualToSize(newSize, CGSizeZero)) {
                         UIImage *smallerImage = [imageToSet resizedImageWithContentMode:UIViewContentModeScaleAspectFit bounds:newSize interpolationQuality:kCGInterpolationMedium];
                         imageToSet = smallerImage;
                     }
 
                     dispatch_async(dispatch_get_main_queue(), ^{
-                        self.image = imageToSet;
-                        UIView *placeholderSubview = [self viewWithTag:118];
-                        if ( placeholderSubview ) {
-                            [UIView animateWithDuration:0.2
-                                                  delay:0.0
-                                                options:UIViewAnimationOptionCurveEaseIn
-                                             animations:^{
-                                                 [placeholderSubview setAlpha:0.0];
-                                             } completion:^(BOOL completed) {
-                                [placeholderSubview removeFromSuperview];
-                            }];
+//                        INFO(@"Setting image:%@ to imageView:%@", imageToSet, self);
+
+                        [self setImage:imageToSet toImageView:self];
+
+                        // Looping through all associated images and apply settings to them.
+                        // There was issue when multiple real image views wants to load one URL and after completion of loading only one image view gets image (others freezes in loading process).
+                        for (UIImageView *imageView in [self associatedImageViewsForRequest:urlRequest]) {
+                            if (imageView) {
+                                [self setImage:imageToSet toImageView:imageView];
+                            }
                         }
 
+                        // Removing image views array for current URL
+                        [[UIImageView af_associatedImageViewsDictionary] removeObjectForKey:urlRequest.URL.absoluteString];
 
-                        if ( placeholderImageView ) {
-                            [UIView animateWithDuration:0.3 animations:^{
-                                [placeholderImageView setAlpha:0.0];
-                            } completion:^(BOOL completed) {
-                                [placeholderImageView removeFromSuperview];
-                            }];
-                        }
                     });
 
                     self.af_imageRequestOperation = nil;
                 }
 
-                if (success) {
-                    success(operation.request, operation.response, imageToSet);
-                }
+                dispatch_async(dispatch_get_main_queue(), ^{
+                    if (success) {
+                        success(operation.request, operation.response, imageToSet);
+                    }
+                });
 
-                if ( ! CGSizeEqualToSize(newSize, CGSizeZero) ) {
+                if (!CGSizeEqualToSize(newSize, CGSizeZero)) {
                     [[[self class] af_sharedImageCache] cacheImage:responseImage forRequest:urlRequest size:CGSizeZero];
                 }
 
                 [[[self class] af_sharedImageCache] cacheImage:imageToSet forRequest:urlRequest size:newSize];
 
 
-            } failure:^(AFHTTPRequestOperation *operation, NSError *error) {
-//                INFO(@"Loading failed: %@", urlRequest.URL);
-                if ([[urlRequest URL] isEqual:[[self.af_imageRequestOperation request] URL]]) {
-                    [placeholderImageView removeFromSuperview];
-                    [placeholderView removeFromSuperview];
-                    self.af_imageRequestOperation = nil;
+            };
+            void (^requestOperationFailure)(AFHTTPRequestOperation *, NSError *) = ^(AFHTTPRequestOperation *operation, NSError *error) {
+                //                INFO(@"Loading failed: %@", urlRequest.URL);
+                dispatch_async(dispatch_get_main_queue(), ^{
+                    if ([[urlRequest URL] isEqual:[[self.af_imageRequestOperation request] URL]]) {
+                        [placeholderImageView removeFromSuperview];
+                        [placeholderView removeFromSuperview];
+                        self.af_imageRequestOperation = nil;
+                    }
+
+                    if (failure) {
+                        failure(operation.request, operation.response, error);
+                    }
+                });
+            };
+
+            BOOL wasSuspended = [[[self class] af_sharedImageRequestOperationStack] isSuspended];
+
+            // Suspending to prevent race condition
+            [[[self class] af_sharedImageRequestOperationStack] setSuspended:YES];
+
+            AFHTTPRequestOperation *requestOperation = nil;
+
+            /**
+            * Searching for operation which have the same URL.
+            * */
+            for (AFHTTPRequestOperation *op in [[[self class] af_sharedImageRequestOperationStack] operations]) {
+                if ( [op.request.URL isEqual:urlRequest.URL] ) {
+                    // If we found operation with the same URL -> reuse it instead of creating new request and download multiple copies of one image
+                    requestOperation = op;
+                    [requestOperation retain];
+                    break;
                 }
+            }
 
-                if (failure) {
-                    failure(operation.request, operation.response, error);
-                }
+//            INFO(@"iPad:%d maxConcurrent:%d", iPadVersion(), [[[self class] af_sharedImageRequestOperationStack] maxConcurrentOperationCount]);
 
-            }];
+            // Adding current image view to associated image views
+            [self addImageViewToAssociatedDictionaryForRequest:urlRequest];
 
-            self.af_imageRequestOperation = requestOperation;
+            // Checking whether we should create operation or we found one to reuse
+            if ( requestOperation && ! [requestOperation isFinished]) {
+//                INFO(@"Reusing request:%@ for url: %@", requestOperation, urlRequest.URL);
+                [requestOperation setCompletionBlockWithSuccess:requestOperationSuccess failure:requestOperationFailure];
 
-            [[[self class] af_sharedImageRequestOperationQueue] addOperation:self.af_imageRequestOperation];
+                self.af_imageRequestOperation = requestOperation;
+
+                [requestOperation release];
+            } else {
+//                INFO(@"Starting load for url: %@", urlRequest.URL);
+                requestOperation = [[[AFHTTPRequestOperation alloc] initWithRequest:urlRequest] autorelease];
+                [requestOperation setCompletionBlockWithSuccess:requestOperationSuccess failure:requestOperationFailure];
+
+                self.af_imageRequestOperation = requestOperation;
+
+                [[[self class] af_sharedImageRequestOperationStack] addOperationAtFrontOfQueue:self.af_imageRequestOperation];
+            }
+
+            // Restoring suspended state
+            [[[self class] af_sharedImageRequestOperationStack] setSuspended:wasSuspended];
+
         }
     }
 }
 
+// Setting image and removing placeholders
+- (void)setImage:(UIImage *)image toImageView:(UIImageView *)imageView {
+    imageView.image = image;
+
+    UIView *placeholderSubview = [imageView viewWithTag:kImageViewPlaceholderViewTag];
+    if (placeholderSubview) {
+        [UIView animateWithDuration:0.2
+                              delay:0.0
+                            options:UIViewAnimationOptionCurveEaseIn
+                animations:^{
+                    [placeholderSubview setAlpha:0.0];
+                } completion:^(BOOL completed) {
+            [placeholderSubview removeFromSuperview];
+        }];
+    }
+
+    UIImageView *placeholderImageView = (UIImageView *) [imageView viewWithTag:kImageViewPlaceholderImageViewTag];
+    if (placeholderImageView) {
+        [UIView animateWithDuration:0.3 animations:^{
+            [placeholderImageView setAlpha:0.0];
+        }                completion:^(BOOL completed) {
+            [placeholderImageView removeFromSuperview];
+        }];
+    }
+}
+
+// Adding image view to associated image views
+- (void)addImageViewToAssociatedDictionaryForRequest:(NSURLRequest *)urlRequest {
+    NSString *key = urlRequest.URL.absoluteString;
+
+    if ([UIImageView af_associatedImageViewsDictionary]) {
+
+        NSArray *imageViewsArray = [[UIImageView af_associatedImageViewsDictionary] objectForKey:key];
+
+        if (imageViewsArray) {
+            NSMutableArray *mutableAssociatedImageViewsArray = [NSMutableArray arrayWithArray:imageViewsArray];
+
+            if (![mutableAssociatedImageViewsArray containsObject:self]) {
+                [mutableAssociatedImageViewsArray addObject:self];
+            }
+
+            [[UIImageView af_associatedImageViewsDictionary] setObject:[NSArray arrayWithArray:mutableAssociatedImageViewsArray] forKey:key];
+        } else {
+            [[UIImageView af_associatedImageViewsDictionary] setObject:[NSArray arrayWithObject:self] forKey:key];
+        }
+
+    }
+
+//    INFO(@"%@", [UIImageView af_associatedImageViewsDictionary]);
+}
+
+// Getting associated image views for request URL
+- (NSArray *)associatedImageViewsForRequest:(NSURLRequest *)urlRequest {
+    return [NSArray arrayWithArray:[[UIImageView af_associatedImageViewsDictionary] objectForKey:urlRequest.URL.absoluteString]];
+}
 
 - (void)cancelImageRequestOperation {
     [self.af_imageRequestOperation cancel];
@@ -316,10 +445,6 @@ static inline NSString * AFImageCacheKeyFromURLRequestAndSize(NSURLRequest *requ
     return [[[request URL] absoluteString] stringByAppendingFormat:@"(%.0fx%.0f)", size.width, size.height];
 }
 
-static inline NSInteger iPadVersion() {
-    return [[[NSUserDefaults standardUserDefaults] objectForKey:@"ipad-version"] integerValue];
-};
-
 @implementation AFImageCache
 
 - (void)memoryWarningReceived {
@@ -333,7 +458,7 @@ static inline NSInteger iPadVersion() {
         [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(memoryWarningReceived) name:UIApplicationDidReceiveMemoryWarningNotification object:nil];
 
         // if device is ipad1, caching only 30 images and less than 3 mb total size
-        if ( iPadVersion() == 1 ) {
+        if (1 == iPadVersion()) {
             [self setCountLimit:30];
             [self setTotalCostLimit:3145728]; //3 mb
         }
@@ -410,7 +535,12 @@ static inline NSInteger iPadVersion() {
     if ( foundInCache ) {
         if ( ! [self objectForKey:AFImageCacheKeyFromURLRequestAndSize(request, size)] ) {
             NSData *imageData = [NSData dataWithContentsOfFile:path];
-            [self setObject:[UIImage imageWithData:imageData] forKey:AFImageCacheKeyFromURLRequestAndSize(request, size)];
+            UIImage *image = [UIImage imageWithData:imageData];
+
+            // Setting object if not nil
+            if ( image ) {
+                [self setObject:image forKey:AFImageCacheKeyFromURLRequestAndSize(request, size)];
+            }
         }
     }
 
@@ -479,11 +609,22 @@ static inline NSInteger iPadVersion() {
         forRequest:(NSURLRequest *)request
               size:(CGSize)size
 {
+    [self cacheImage:image
+          forRequest:request
+                size:size
+               force:NO];
+}
+
+- (void)cacheImage:(UIImage *)image
+        forRequest:(NSURLRequest *)request
+              size:(CGSize)size
+             force:(BOOL)force
+{
     if (image && request) {
         NSString *const path = [self cachePathForImageUrl:request.URL size:size];
-        BOOL foundInCache = [self pathExists:path];
 
-        if ( ! foundInCache ) {
+        // If force flag specified, writing to file anyway
+        if ( force || ! [self pathExists:path] ) {
             NSData *imageData = UIImageJPEGRepresentation(image, 1.0);
             [imageData writeToFile:path atomically:YES];
 
