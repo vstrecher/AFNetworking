@@ -274,8 +274,9 @@ static char kAFImageRequestOperationObjectKey;
 
                         // Looping through all associated images and apply settings to them.
                         // There was issue when multiple real image views wants to load one URL and after completion of loading only one image view gets image (others freezes in loading process).
+                        // Excluding self from associated image views to prevent lagging when changing placeholder to downloaded image.
                         for (UIImageView *imageView in [self associatedImageViewsForRequest:urlRequest]) {
-                            if (imageView) {
+                            if (imageView && ![imageView isEqual:self]) {
                                 [self setImage:imageToSet toImageView:imageView];
                             }
                         }
