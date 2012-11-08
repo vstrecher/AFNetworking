@@ -263,6 +263,7 @@ static char kAFImageRequestOperationObjectKey;
 
                 if ([[urlRequest URL] isEqual:[[self.af_imageRequestOperation request] URL]]) {
                     if (!CGSizeEqualToSize(newSize, CGSizeZero)) {
+//                        INFO(@"%@", NSStringFromCGSize(imageToSet.size));
                         UIImage *smallerImage = [imageToSet resizedImageWithContentMode:UIViewContentModeScaleAspectFit bounds:newSize interpolationQuality:kCGInterpolationMedium];
                         imageToSet = smallerImage;
                     }
@@ -304,7 +305,7 @@ static char kAFImageRequestOperationObjectKey;
 
             };
             void (^requestOperationFailure)(AFHTTPRequestOperation *, NSError *) = ^(AFHTTPRequestOperation *operation, NSError *error) {
-                //                INFO(@"Loading failed: %@", urlRequest.URL);
+//                INFO(@"Loading failed: %@", urlRequest.URL);
                 dispatch_async(dispatch_get_main_queue(), ^{
                     if ([[urlRequest URL] isEqual:[[self.af_imageRequestOperation request] URL]]) {
                         [placeholderImageView removeFromSuperview];
@@ -502,16 +503,16 @@ static inline NSString * AFImageCacheKeyFromURLRequestAndSize(NSURLRequest *requ
 }
 
 - (NSString*)md5OfString:(NSString*)str {
-	const char *cStr = [str UTF8String];
-	unsigned char result[CC_MD5_DIGEST_LENGTH];
-	CC_MD5( cStr, strlen(cStr), result ); // actually CC_MD5 is available for the deployment target (4.0), but not documented
-	return [NSString stringWithFormat:
-				@"%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X",
-				result[0], result[1], result[2], result[3],
-				result[4], result[5], result[6], result[7],
-				result[8], result[9], result[10], result[11],
-				result[12], result[13], result[14], result[15]
-			];
+    const char *cStr = [str UTF8String];
+    unsigned char result[CC_MD5_DIGEST_LENGTH];
+    CC_MD5( cStr, strlen(cStr), result ); // actually CC_MD5 is available for the deployment target (4.0), but not documented
+    return [NSString stringWithFormat:
+            @"%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X",
+            result[0], result[1], result[2], result[3],
+            result[4], result[5], result[6], result[7],
+            result[8], result[9], result[10], result[11],
+            result[12], result[13], result[14], result[15]
+    ];
 }
 
 - (BOOL)pathExists:(NSString *)path {
@@ -549,7 +550,7 @@ static inline NSString * AFImageCacheKeyFromURLRequestAndSize(NSURLRequest *requ
 }
 
 - (NSString*)cachePathForImageUrl:(NSURL*)url {
-	return [self cachePathForImageUrl:url size:CGSizeZero];
+    return [self cachePathForImageUrl:url size:CGSizeZero];
 }
 
 - (NSString *)cachePathForImages {
