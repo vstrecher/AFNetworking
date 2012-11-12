@@ -532,10 +532,12 @@ static inline NSString * AFImageCacheKeyFromURLRequestAndSize(NSURLRequest *requ
             break;
     }
 
-    NSString *const path = [self cachePathForImageUrl:request.URL size:size];
-    BOOL foundInCache = [self pathExists:path];
-    if ( foundInCache ) {
-        if ( ! [self objectForKey:AFImageCacheKeyFromURLRequestAndSize(request, size)] ) {
+    UIImage *cachedImage = [self objectForKey:AFImageCacheKeyFromURLRequestAndSize(request, size)];
+
+    if (!cachedImage) {
+        NSString *const path = [self cachePathForImageUrl:request.URL size:size];
+        BOOL foundInCache = [self pathExists:path];
+        if ( foundInCache ) {
             NSData *imageData = [NSData dataWithContentsOfFile:path];
             UIImage *image = [UIImage imageWithData:imageData];
 
@@ -543,10 +545,12 @@ static inline NSString * AFImageCacheKeyFromURLRequestAndSize(NSURLRequest *requ
             if ( image ) {
                 [self setObject:image forKey:AFImageCacheKeyFromURLRequestAndSize(request, size)];
             }
+
+            cachedImage = image;
         }
     }
 
-    return [self objectForKey:AFImageCacheKeyFromURLRequestAndSize(request, size)];
+    return cachedImage;
 }
 
 - (NSString*)cachePathForImageUrl:(NSURL*)url {
@@ -554,16 +558,18 @@ static inline NSString * AFImageCacheKeyFromURLRequestAndSize(NSURLRequest *requ
 }
 
 - (NSString *)cachePathForImages {
-    NSArray *paths = NSSearchPathForDirectoriesInDomains(NSCachesDirectory, NSUserDomainMask, YES);
-    NSString *cachePath = [[paths objectAtIndex:0] stringByAppendingPathComponent:kImagesCacheDirectory];
-
-    if ( ! [self pathExists:cachePath] ) {
-        [[NSFileManager defaultManager] createDirectoryAtPath:cachePath withIntermediateDirectories:YES attributes:nil error:nil];
-    }
+    static NSString *cachePath = nil;
 
     // cache clearing
     static dispatch_once_t onceToken;
     dispatch_once(&onceToken, ^{
+        NSArray *paths = NSSearchPathForDirectoriesInDomains(NSCachesDirectory, NSUserDomainMask, YES);
+        cachePath = [[[paths objectAtIndex:0] stringByAppendingPathComponent:kImagesCacheDirectory] retain];
+
+        if ( ! [self pathExists:cachePath] ) {
+            [[NSFileManager defaultManager] createDirectoryAtPath:cachePath withIntermediateDirectories:YES attributes:nil error:nil];
+        }
+
         NSArray *cachedImages = [[NSFileManager defaultManager] contentsOfDirectoryAtPath:cachePath error:nil];
 
         for (NSString *image in cachedImages) {
