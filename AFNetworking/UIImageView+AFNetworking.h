@@ -138,6 +138,10 @@ static inline NSInteger iPadVersion() {
                       resizeTo:(CGSize)newSize;
 
 
+- (void)removeImageViewFromAssociatedDictionary;
+
+- (void)removeImageViewFromAssociatedDictionary:(UIImageView *)imageView;
+
 /**
  Cancels any executing image request operation for the receiver, if one exists.
  */

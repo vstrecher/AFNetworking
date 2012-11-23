@@ -396,6 +396,8 @@ static char kAFImageRequestOperationObjectKey;
 
 // Adding image view to associated image views
 - (void)addImageViewToAssociatedDictionaryForRequest:(NSURLRequest *)urlRequest {
+    [self removeImageViewFromAssociatedDictionary];
+
     NSString *key = urlRequest.URL.absoluteString;
 
     if ([UIImageView af_associatedImageViewsDictionary]) {
@@ -417,6 +419,35 @@ static char kAFImageRequestOperationObjectKey;
     }
 
 //    INFO(@"%@", [UIImageView af_associatedImageViewsDictionary]);
+}
+
+- (void)removeImageViewFromAssociatedDictionary {
+    [self removeImageViewFromAssociatedDictionary:self];
+}
+
+- (void)removeImageViewFromAssociatedDictionary:(UIImageView *)imageView {
+    if (![UIImageView af_associatedImageViewsDictionary]) {
+        return;
+    }
+
+    NSMutableDictionary *mainDictionary = [UIImageView af_associatedImageViewsDictionary];
+
+    NSArray *allRequests = mainDictionary.allKeys;
+
+    for (NSString *key in allRequests) {
+        NSArray *associatedImageViews = [mainDictionary objectForKey:key];
+
+        if (!associatedImageViews) {
+            continue;
+        }
+
+        if ([associatedImageViews containsObject:imageView]) {
+            NSMutableArray *finalArray = [[NSMutableArray alloc] initWithArray:associatedImageViews];
+            [finalArray removeObject:imageView];
+            [mainDictionary setObject:[NSArray arrayWithArray:finalArray] forKey:key];
+            [finalArray release];
+        }
+    }
 }
 
 // Getting associated image views for request URL
