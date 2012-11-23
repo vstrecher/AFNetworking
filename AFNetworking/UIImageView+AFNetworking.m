@@ -211,7 +211,7 @@ static char kAFImageRequestOperationObjectKey;
 
             UIImage *imageToSet = cachedImage;
             if ( !CGSizeEqualToSize(newSize, CGSizeZero) ) {
-                UIImage *smallerImage = [imageToSet resizedImageWithContentMode:UIViewContentModeScaleAspectFit bounds:newSize interpolationQuality:kCGInterpolationMedium];
+                UIImage *smallerImage = [imageToSet resizedImageWithContentMode:UIViewContentModeScaleAspectFit bounds:newSize interpolationQuality:kResizingImageQuality];
                 imageToSet = smallerImage;
             }
 
@@ -254,7 +254,7 @@ static char kAFImageRequestOperationObjectKey;
 
                 if (1 == iPadVersion()) {
                     if (responseImage.size.width > 1024 || responseImage.size.height > 768) {
-                        UIImage *smallerImage = [responseImage resizedImageWithContentMode:UIViewContentModeScaleAspectFit bounds:CGSizeMake(floorf(responseImage.size.width / 2.0), floorf(responseImage.size.height / 2.0)) interpolationQuality:kCGInterpolationMedium];
+                        UIImage *smallerImage = [responseImage resizedImageWithContentMode:UIViewContentModeScaleAspectFit bounds:CGSizeMake(floorf(responseImage.size.width / 2.0), floorf(responseImage.size.height / 2.0)) interpolationQuality:kResizingImageQuality];
                         responseImage = smallerImage;
                     }
                 }
@@ -264,7 +264,7 @@ static char kAFImageRequestOperationObjectKey;
                 if ([[urlRequest URL] isEqual:[[self.af_imageRequestOperation request] URL]]) {
                     if (!CGSizeEqualToSize(newSize, CGSizeZero)) {
 //                        INFO(@"%@", NSStringFromCGSize(imageToSet.size));
-                        UIImage *smallerImage = [imageToSet resizedImageWithContentMode:UIViewContentModeScaleAspectFit bounds:newSize interpolationQuality:kCGInterpolationMedium];
+                        UIImage *smallerImage = [imageToSet resizedImageWithContentMode:UIViewContentModeScaleAspectFit bounds:newSize interpolationQuality:kResizingImageQuality];
                         imageToSet = smallerImage;
                     }
 
@@ -278,7 +278,17 @@ static char kAFImageRequestOperationObjectKey;
                         // Excluding self from associated image views to prevent lagging when changing placeholder to downloaded image.
                         for (UIImageView *imageView in [self associatedImageViewsForRequest:urlRequest]) {
                             if (imageView && ![imageView isEqual:self]) {
-                                [self setImage:imageToSet toImageView:imageView];
+                                UIImage *nestedImageToSet = imageToSet;
+                                CGSize imageViewSize = imageView.size;
+
+                                if ( !CGSizeEqualToSize(imageViewSize, CGSizeZero) ) {
+                                    UIImage *smallerImage = [imageToSet resizedImageWithContentMode:UIViewContentModeScaleAspectFit bounds:imageViewSize interpolationQuality:kResizingImageQuality];
+                                    nestedImageToSet = smallerImage;
+                                }
+
+                                [self setImage:nestedImageToSet toImageView:imageView];
+
+                                [[[self class] af_sharedImageCache] cacheImage:nestedImageToSet forRequest:urlRequest size:imageViewSize force:YES];
                             }
                         }
 

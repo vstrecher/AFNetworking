@@ -32,6 +32,9 @@
 
 #define kImageViewPlaceholderImageViewTag 122
 #define kImageViewPlaceholderViewTag 118
+
+#define kResizingImageQuality (kCGInterpolationHigh)
+
 static inline BOOL CGSizeAlmostEqualToSize(CGSize size1, CGSize size2) {
     CGFloat dx = fabsf(size1.width - size2.width);
     CGFloat dy = fabsf(size1.height - size2.height);
