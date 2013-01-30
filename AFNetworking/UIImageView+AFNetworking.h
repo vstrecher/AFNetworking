@@ -36,7 +36,8 @@ static inline BOOL CGSizeAlmostEqualToSize(CGSize size1, CGSize size2) {
     CGFloat dx = fabsf(size1.width - size2.width);
     CGFloat dy = fabsf(size1.height - size2.height);
 
-    return dx <= 2.0 && dy <= 2.0;
+    // Using here || instead of &&. Because && works only for square images
+    return dx <= 2.0 || dy <= 2.0;
 }
 
 static inline NSInteger iPadVersion() {
