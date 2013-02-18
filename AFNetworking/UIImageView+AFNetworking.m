@@ -501,17 +501,38 @@ static inline NSString * AFImageCacheKeyFromURLRequestAndSize(NSURLRequest *requ
     }
 }
 
-- (NSString*)md5OfString:(NSString*)str {
-	const char *cStr = [str UTF8String];
-	unsigned char result[CC_MD5_DIGEST_LENGTH];
-	CC_MD5( cStr, strlen(cStr), result ); // actually CC_MD5 is available for the deployment target (4.0), but not documented
-	return [NSString stringWithFormat:
-				@"%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X",
-				result[0], result[1], result[2], result[3],
-				result[4], result[5], result[6], result[7],
-				result[8], result[9], result[10], result[11],
-				result[12], result[13], result[14], result[15]
-			];
+- (NSString*)_md5OfString:(NSString*)str {
+    if ( ! str )
+    {
+        str = @"";
+    }
+
+    const char *cStr = [str UTF8String];
+    unsigned char result[CC_MD5_DIGEST_LENGTH];
+    CC_MD5(
+            cStr,
+            strlen(cStr),
+            result
+    ); // actually CC_MD5 is available for the deployment target (4.0), but not documented
+    return [NSString stringWithFormat:
+                             @"%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X",
+                             result[0],
+                             result[1],
+                             result[2],
+                             result[3],
+                             result[4],
+                             result[5],
+                             result[6],
+                             result[7],
+                             result[8],
+                             result[9],
+                             result[10],
+                             result[11],
+                             result[12],
+                             result[13],
+                             result[14],
+                             result[15]
+    ];
 }
 
 - (BOOL)pathExists:(NSString *)path {
@@ -587,7 +608,7 @@ static inline NSString * AFImageCacheKeyFromURLRequestAndSize(NSURLRequest *requ
 
 - (NSString*)cachePathForImageUrl:(NSURL*)url size:(CGSize)size {
     NSString *cachePath = [self cachePathForImages];
-    NSString *fileName;
+    NSString *fileName = nil;
 
     if ( CGSizeEqualToSize(size, CGSizeZero) ) {
         fileName = [url absoluteString];
@@ -595,7 +616,7 @@ static inline NSString * AFImageCacheKeyFromURLRequestAndSize(NSURLRequest *requ
         fileName = [NSString stringWithFormat:@"%@(%.0fx%.0f)", [url absoluteString], size.width, size.height];
     }
 
-    NSString* filePath = [cachePath stringByAppendingPathComponent:[self md5OfString:fileName]];
+    NSString* filePath = [cachePath stringByAppendingPathComponent: [self _md5OfString: fileName]];
 
     return filePath;
 }

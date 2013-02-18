@@ -47,6 +47,8 @@ static inline NSInteger iPadVersion() {
 @interface AFImageCache : NSCache
 - (void)dropCache;
 
+- (NSString *)_md5OfString: (NSString *)str;
+
 - (UIImage *)cachedImageForRequest:(NSURLRequest *)request;
 
 - (UIImage *)cachedImageForRequest:(NSURLRequest *)request size:(CGSize)size;
