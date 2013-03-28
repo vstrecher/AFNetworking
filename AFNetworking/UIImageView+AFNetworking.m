@@ -408,9 +408,17 @@ static char kAFImageRequestOperationObjectKey;
                 [mutableAssociatedImageViewsArray addObject:self];
             }
 
-            [[UIImageView af_associatedImageViewsDictionary] setObject:[NSArray arrayWithArray:mutableAssociatedImageViewsArray] forKey:key];
+            if (key) {
+                [[UIImageView af_associatedImageViewsDictionary] setObject:[NSArray arrayWithArray:mutableAssociatedImageViewsArray] forKey:key];
+            } else {
+                INFO(@"Key is nil for urlrequest:%@", urlRequest);
+            }
         } else {
-            [[UIImageView af_associatedImageViewsDictionary] setObject:[NSArray arrayWithObject:self] forKey:key];
+            if (key) {
+                [[UIImageView af_associatedImageViewsDictionary] setObject:[NSArray arrayWithObject:self] forKey:key];
+            } else {
+                INFO(@"Key is nil for urlrequest:%@", urlRequest);
+            }
         }
 
     }
@@ -561,7 +569,12 @@ static inline NSString * AFImageCacheKeyFromURLRequestAndSize(NSURLRequest *requ
 
             // Setting object if not nil
             if ( image ) {
-                [self setObject:image forKey:AFImageCacheKeyFromURLRequestAndSize(request, size)];
+                NSString *key = AFImageCacheKeyFromURLRequestAndSize(request, size);
+                if (key) {
+                    [self setObject: image forKey: key];
+                } else {
+                    INFO(@"Key is nil for request:%@ size:%@", request, NSStringFromCGSize(size));
+                }
             }
         }
     }
@@ -650,7 +663,14 @@ static inline NSString * AFImageCacheKeyFromURLRequestAndSize(NSURLRequest *requ
             NSData *imageData = UIImageJPEGRepresentation(image, 1.0);
             [imageData writeToFile:path atomically:YES];
 
-            [self setObject:image forKey:AFImageCacheKeyFromURLRequestAndSize(request, size)];
+            if (image) {
+                NSString *key = AFImageCacheKeyFromURLRequestAndSize(request, size);
+                if (key) {
+                    [self setObject: image forKey: key];
+                } else {
+                    INFO(@"Key is nil for request:%@ size:%@", request, NSStringFromCGSize(size));
+                }
+            }
         }
     }
 }
