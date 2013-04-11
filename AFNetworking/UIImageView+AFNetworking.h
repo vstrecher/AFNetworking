@@ -44,6 +44,10 @@ static inline NSInteger iPadVersion() {
     return [[[NSUserDefaults standardUserDefaults] objectForKey:@"ipad-version"] integerValue];
 };
 
+static inline BOOL shouldCutDownWorkload() {
+    return iPadVersion() <= 2;
+}
+
 @interface AFImageCache : NSCache
 - (void)dropCache;
 

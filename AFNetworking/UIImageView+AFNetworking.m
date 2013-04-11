@@ -63,7 +63,7 @@ static char kAFImageRequestOperationObjectKey;
 
     dispatch_once(&operationStackToken, ^{
         _af_imageRequestOperationStack = [[NSOperationStack alloc] init];
-        if ( 1 == iPadVersion() ) {
+        if ( shouldCutDownWorkload() ) {
             [_af_imageRequestOperationStack setMaxConcurrentOperationCount:4];
         } else {
             [_af_imageRequestOperationStack setMaxConcurrentOperationCount:8];
@@ -252,7 +252,7 @@ static char kAFImageRequestOperationObjectKey;
 
                 UIImage *responseImage = [UIImage imageWithData:responseObject];
 
-                if (1 == iPadVersion()) {
+                if ( shouldCutDownWorkload() ) {
                     if (responseImage.size.width > 1024 || responseImage.size.height > 768) {
                         UIImage *smallerImage = [responseImage resizedImageWithContentMode:UIViewContentModeScaleAspectFit bounds:CGSizeMake(floorf(responseImage.size.width / 2.0), floorf(responseImage.size.height / 2.0)) interpolationQuality:kCGInterpolationMedium];
                         responseImage = smallerImage;
@@ -466,8 +466,8 @@ static inline NSString * AFImageCacheKeyFromURLRequestAndSize(NSURLRequest *requ
     if (self) {
         [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(memoryWarningReceived) name:UIApplicationDidReceiveMemoryWarningNotification object:nil];
 
-        // if device is ipad1, caching only 30 images and less than 3 mb total size
-        if (1 == iPadVersion()) {
+        // if device is ipad1 or 2, caching only 30 images and less than 3 mb total size
+        if ( shouldCutDownWorkload() ) {
             [self setCountLimit:30];
             [self setTotalCostLimit:3145728]; //3 mb
         }
