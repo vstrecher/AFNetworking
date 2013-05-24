@@ -23,6 +23,11 @@
 #import <Foundation/Foundation.h>
 #import <objc/runtime.h>
 
+#import <sys/types.h>
+#import <sys/stat.h>
+#import <unistd.h>
+#import <CommonCrypto/CommonDigest.h>
+
 #if defined(__IPHONE_OS_VERSION_MIN_REQUIRED)
 #import "UIImageView+AFNetworking.h"
 
@@ -157,10 +162,27 @@ static inline NSString * AFImageCacheKeyFromURLRequest(NSURLRequest *request) {
     return [[request URL] absoluteString];
 }
 
+
+NSString * const kImagesCacheDirectory = @"images";
+const time_t kAllowedDeltaTimeForLastAccessedTime = 7 * 24 * 3600; // a week
+const int kCacheClearingFrequency = 1000; // one per a thousand of requests
+
+@interface AFImageCache ()
+
+- (UIImage *)cachedImageForUrl:(NSURL *)url;
+- (NSString *)cachePathForImageUrl:(NSURL *)url;
+- (NSString *)cachePathForImages;
+- (NSString *)md5OfString:(NSString *)str;
+
+@end;
+
+
 @implementation AFImageCache
 
-- (UIImage *)cachedImageForRequest:(NSURLRequest *)request {
-    switch ([request cachePolicy]) {
+- (UIImage *)cachedImageForRequest:(NSURLRequest *)request
+{
+    switch ([request cachePolicy])
+    {
         case NSURLRequestReloadIgnoringCacheData:
         case NSURLRequestReloadIgnoringLocalAndRemoteCacheData:
             return nil;
@@ -168,15 +190,103 @@ static inline NSString * AFImageCacheKeyFromURLRequest(NSURLRequest *request) {
             break;
     }
 
-	return [self objectForKey:AFImageCacheKeyFromURLRequest(request)];
+	UIImage *ret = [self objectForKey:AFImageCacheKeyFromURLRequest(request)];
+    if (nil == ret)
+    {
+        ret = [self cachedImageForUrl:request.URL];
+    }
+    return ret;
 }
 
-- (void)cacheImage:(UIImage *)image
-        forRequest:(NSURLRequest *)request
+- (void)cacheImage:(UIImage *)image forRequest:(NSURLRequest *)request
 {
-    if (image && request) {
+    if (image && request)
+    {
         [self setObject:image forKey:AFImageCacheKeyFromURLRequest(request)];
+        [self cacheImage:image forUrl:request.URL];
     }
+}
+
+#pragma mark - Private function
+
+- (void)cacheImage:(UIImage *)image forUrl:(NSURL *)url
+{
+    NSString *path = [self cachePathForImageUrl:url];
+    if (NO == [[NSFileManager defaultManager] fileExistsAtPath:path])
+    {
+        NSData *imageData = UIImageJPEGRepresentation(image, 1.0);
+        [imageData writeToFile:path atomically:YES];
+    }
+}
+
+- (UIImage *)cachedImageForUrl:(NSURL *)url
+{
+    NSString *path = [self cachePathForImageUrl:url];
+    if (YES == [[NSFileManager defaultManager] fileExistsAtPath:path])
+    {
+        return [UIImage imageWithContentsOfFile:path];
+    }
+    return nil;
+}
+
+- (NSString *)cachePathForImageUrl:(NSURL *)url
+{
+    NSString *cachePath = [self cachePathForImages];
+    NSString *fileName = [url absoluteString];
+    
+    return [cachePath stringByAppendingPathComponent:[self md5OfString:fileName]];
+}
+
+- (NSString *)cachePathForImages
+{
+    NSArray *paths = NSSearchPathForDirectoriesInDomains(NSCachesDirectory, NSUserDomainMask, YES);
+    NSString *cachePath = [[paths objectAtIndex:0] stringByAppendingPathComponent:kImagesCacheDirectory];
+    
+    if (NO == [[NSFileManager defaultManager] fileExistsAtPath:cachePath])
+    {
+        [[NSFileManager defaultManager] createDirectoryAtPath:cachePath withIntermediateDirectories:YES attributes:nil error:nil];
+    }
+    
+    // cache clearing
+    int rnd = rand() % kCacheClearingFrequency;
+    if (0 == rnd)
+    {
+        NSArray *cachedImages = [[NSFileManager defaultManager] contentsOfDirectoryAtPath:cachePath error:nil];
+        
+        for (NSString *image in cachedImages)
+        {
+            NSString *imageFullPath = [cachePath stringByAppendingPathComponent:image];
+            
+            struct stat output;
+            stat([imageFullPath fileSystemRepresentation], &output);
+            
+            __darwin_time_t accessTime = output.st_atime;
+            time_t unixTime = (time_t)[[NSDate date] timeIntervalSince1970];
+            time_t delta = unixTime - accessTime;
+            
+            if ( delta > kAllowedDeltaTimeForLastAccessedTime)
+            {
+                [[NSFileManager defaultManager] removeItemAtPath:imageFullPath error:nil];
+            }
+        }
+        
+    }
+    
+    return cachePath;
+}
+
+- (NSString *)md5OfString:(NSString *)str
+{
+	const char *cStr = [str UTF8String];
+	unsigned char result[CC_MD5_DIGEST_LENGTH];
+	CC_MD5( cStr, strlen(cStr), result ); // actually CC_MD5 is available for the deployment target (4.0), but not documented
+	return [NSString stringWithFormat:
+            @"%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X",
+            result[0], result[1], result[2], result[3],
+            result[4], result[5], result[6], result[7],
+            result[8], result[9], result[10], result[11],
+            result[12], result[13], result[14], result[15]
+			];
 }
 
 @end
