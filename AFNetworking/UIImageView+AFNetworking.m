@@ -214,7 +214,7 @@ const int kCacheClearingFrequency = 1000; // one per a thousand of requests
     NSString *path = [self cachePathForImageUrl:url];
     if (NO == [[NSFileManager defaultManager] fileExistsAtPath:path])
     {
-        NSData *imageData = UIImageJPEGRepresentation(image, 1.0);
+        NSData *imageData = UIImagePNGRepresentation(image);
         [imageData writeToFile:path atomically:YES];
     }
 }
