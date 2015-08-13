@@ -23,71 +23,69 @@
 #import "AppDelegate.h"
 
 #if __IPHONE_OS_VERSION_MIN_REQUIRED
+    #import "GlobalTimelineViewController.h"
 
-#import "PublicTimelineViewController.h"
+    #import "AFNetworkActivityIndicatorManager.h"
 
-#import "AFNetworkActivityIndicatorManager.h"
+    @implementation AppDelegate
 
-@implementation AppDelegate
-@synthesize window = _window;
-@synthesize navigationController = _navigationController;
+    - (BOOL)application:(__unused UIApplication *)application
+    didFinishLaunchingWithOptions:(__unused NSDictionary *)launchOptions
+    {
+        NSURLCache *URLCache = [[NSURLCache alloc] initWithMemoryCapacity:4 * 1024 * 1024 diskCapacity:20 * 1024 * 1024 diskPath:nil];
+        [NSURLCache setSharedURLCache:URLCache];
+            
+        [[AFNetworkActivityIndicatorManager sharedManager] setEnabled:YES];
+        
+        UITableViewController *viewController = [[GlobalTimelineViewController alloc] initWithStyle:UITableViewStylePlain];
+        self.navigationController = [[UINavigationController alloc] initWithRootViewController:viewController];
+        self.navigationController.navigationBar.tintColor = [UIColor darkGrayColor];
+        
+        self.window = [[UIWindow alloc] initWithFrame:[[UIScreen mainScreen] bounds]];
+        self.window.backgroundColor = [UIColor whiteColor];
+        self.window.rootViewController = self.navigationController;
+        [self.window makeKeyAndVisible];
+        
+        return YES;
+    }
 
-- (BOOL)application:(UIApplication *)application 
-didFinishLaunchingWithOptions:(NSDictionary *)launchOptions 
-{
-    NSURLCache *URLCache = [[NSURLCache alloc] initWithMemoryCapacity:1024 * 1024 diskCapacity:1024 * 1024 * 5 diskPath:nil];
-    [NSURLCache setSharedURLCache:URLCache];
-
-  [[AFNetworkActivityIndicatorManager sharedManager] setEnabled:YES];
-
-  UITableViewController *viewController = [[PublicTimelineViewController alloc] initWithStyle:UITableViewStylePlain];
-  self.navigationController = [[UINavigationController alloc] initWithRootViewController:viewController];
-  self.navigationController.navigationBar.tintColor = [UIColor darkGrayColor];
-
-  self.window = [[UIWindow alloc] initWithFrame:[[UIScreen mainScreen] bounds]];  
-  self.window.backgroundColor = [UIColor whiteColor];
-  self.window.rootViewController = self.navigationController;
-  [self.window makeKeyAndVisible];
-
-  return YES;
-}
-
-@end
-
+    @end
 #else
+    #import "Post.h"
+    #import "User.h"
 
-#import "Tweet.h"
-#import "User.h"
+    @implementation AppDelegate
 
-@implementation AppDelegate
+    - (void)applicationDidFinishLaunching:(NSNotification *)notification {
+        NSURLCache *URLCache = [[NSURLCache alloc] initWithMemoryCapacity:4 * 1024 * 1024 diskCapacity:20 * 1024 * 1024 diskPath:nil];
+        [NSURLCache setSharedURLCache:URLCache];
+        
+        [self.window makeKeyAndOrderFront:self];
+        
+        [Post globalTimelinePostsWithBlock:^(NSArray *posts, NSError *error) {
+            if (error) {
+                NSAlert *alert = [[NSAlert alloc] init];
+                alert.messageText = NSLocalizedString(@"Error", nil);
+                alert.informativeText = error.localizedDescription;
+                [alert addButtonWithTitle:NSLocalizedString(@"OK", nil)];
+                [alert runModal];
+            }
+            
+            self.postsArrayController.content = posts;
+        }];
+        
+        [[NSNotificationCenter defaultCenter] addObserverForName:kUserProfileImageDidLoadNotification object:nil queue:[NSOperationQueue mainQueue] usingBlock:^(NSNotification *notification) {
+            [self.tableView reloadData];
+        }];
+    }
 
-@synthesize window = _window;
-@synthesize tableView = _tableView;
-@synthesize tweetsArrayController = _tweetsArrayController;
+    - (BOOL)applicationShouldHandleReopen:(NSApplication *)application 
+                        hasVisibleWindows:(BOOL)flag 
+    {
+        [self.window makeKeyAndOrderFront:self];
+        
+        return YES;
+    }
 
-- (void)applicationDidFinishLaunching:(NSNotification *)notification {
-    NSURLCache *URLCache = [[NSURLCache alloc] initWithMemoryCapacity:1024 * 1024 diskCapacity:1024 * 1024 * 5 diskPath:nil];
-    [NSURLCache setSharedURLCache:URLCache];
-    
-    [self.window makeKeyAndOrderFront:self];
-    
-    [Tweet publicTimelineTweetsWithBlock:^(NSArray *tweets) {
-        self.tweetsArrayController.content = tweets;
-    }];
-    
-    [[NSNotificationCenter defaultCenter] addObserverForName:kUserProfileImageDidLoadNotification object:nil queue:[NSOperationQueue mainQueue] usingBlock:^(NSNotification *notification) {
-        [self.tableView reloadData];
-    }];
-}
-
-- (BOOL)applicationShouldHandleReopen:(NSApplication *)application 
-                    hasVisibleWindows:(BOOL)flag 
-{
-    [self.window makeKeyAndOrderFront:self];
-    
-    return YES;
-}
-
-@end
-
+    @end
 #endif
