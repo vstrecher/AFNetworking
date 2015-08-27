@@ -309,3 +309,12 @@ extern NSString * const AFNetworkingOperationFailingURLResponseErrorKey;
 extern NSString * const AFNetworkingOperationFailingURLResponseDataErrorKey;
 
 NS_ASSUME_NONNULL_END
+
+static NSString * const JSONResponseSerializerWithDataKey = @"JSONResponseSerializerWithDataKey";
+
+@interface JSONResponseSerializerWithData : AFJSONResponseSerializer
+@end
+
+extern NSString * const AFNetworkingOperationFailingURLResponseErrorKey;
+
+extern NSString * const AFNetworkingOperationFailingURLResponseDataErrorKey;
